@@ -48,7 +48,14 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+                <button type="button" onclick="exportBackup()" class="admin-only hidden px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium">
+  匯出 JSON 備份
+                </button>
 
+                <label class="admin-only hidden cursor-pointer px-3 py-2 rounded-lg bg-amber-500 text-white text-xs font-medium">
+  還原 JSON 備份
+                <input type="file" accept=".json,application/json" onchange="importBackup(event)" class="hidden">
+                </label>
         <!-- 數據統計卡片 -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
