@@ -449,7 +449,6 @@
                 }
                 firebase.initializeApp(window.INVENTORY_FIREBASE_CONFIG);
                 fbAuth = firebase.auth(); fbDb = firebase.firestore();
-                fbAuth.getRedirectResult().catch(showError);
                 fbAuth.onAuthStateChanged(async user => { try {
                     currentUser = user ? { user: { email: user.email || '', uid: user.uid, role: 'viewer' }, storageMode: 'firebase' } : null;
                     if (user) {
@@ -507,7 +506,7 @@
             lucide.createIcons();
         }
 
-        async function toggleAdminMode() { try { if (!fbAuth) throw new Error('Firebase Auth 尚未初始化。請確認 firebase-config.js 與 index.html 在同一資料夾、設定值已填妥，並透過 GitHub Pages 或 localhost 開啟。'); if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
+        async function toggleAdminMode() { try { if (!fbAuth) throw new Error('Firebase Auth 尚未初始化。請確認 firebase-config.js 與 index.html 在同一資料夾、設定值已填妥，並透過 GitHub Pages 或 localhost 開啟。'); if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
 
         async function loadAllData() {
             if (!fbAuth?.currentUser) return;
