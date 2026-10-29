@@ -98,7 +98,7 @@
                     <i data-lucide="alert-triangle" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <p class="text-xs text-slate-500 font-medium">目標缺數項目</p>
+                    <p class="text-xs text-slate-500 font-medium">缺料項目</p>
                     <h3 id="stat-shortage-count" class="text-2xl font-bold text-amber-600">0 <span class="text-xs font-normal text-slate-500">項</span></h3>
                 </div>
             </div>
@@ -116,7 +116,7 @@
             </button>
             <button id="tab-bom-btn" onclick="switchTab('bom')" class="pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center space-x-2">
                 <i data-lucide="clipboard-check" class="w-4 h-4"></i>
-                <span>缺數明細</span>
+                        <span>缺料明細</span>
             </button>
         </div>
 
@@ -277,7 +277,7 @@
                     </select>
                     <select id="filter-bom-shortage" onchange="renderBomTable()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
                         <option value="ALL">全部狀態</option>
-                        <option value="SHORTAGE_ONLY">僅顯示目標缺數項目</option>
+                        <option value="SHORTAGE_ONLY">僅顯示缺料項目</option>
                         <option value="FULFILLED_ONLY">僅顯示齊料項目</option>
                     </select>
                 </div>
@@ -321,7 +321,7 @@
                                 <th class="p-4 text-right">單機 BOM 用量</th>
                                 <th class="p-4 text-right bg-indigo-50/50 text-indigo-900">目標總需求量</th>
                                 <th class="p-4 text-right">專案累計入庫</th>
-                                <th class="p-4 text-right">目標缺數</th>
+                                <th class="p-4 text-right">缺料數量</th>
                                 <th class="p-4 text-center">齊料狀態</th>
                                 <th class="p-4">備註</th>
                                 <th class="p-4 text-center admin-only hidden">操作</th>
@@ -669,14 +669,14 @@
                 return;
             }
 
-            let csv = `專案名稱,料號,品名,單機BOM用量,目標整機台數,目標總需求量,專案累計入庫,目標缺數,齊料狀態,備註\n`;
+            let csv = `專案名稱,料號,品名,單機BOM用量,目標整機台數,目標總需求量,專案累計入庫,缺料數量,齊料狀態,備註\n`;
             targetBoms.forEach(item => {
                 const itemProj = (item.project || '').trim();
                 const key = `${itemProj}__${(item.item_no || '').trim()}`;
                 const inQty = projectInMap[key] || 0;
                 const totalTargetDemand = item.required_qty * buildTargetQty;
                 const shortage = totalTargetDemand - inQty;
-                const status = shortage <= 0 ? "已齊料" : `缺數中(${shortage})`;
+                const status = shortage <= 0 ? "齊料" : "缺料";
                 const remark = (item.remark || '').replace(/"/g, '""');
 
                 csv += `"${item.project}","${item.item_no}","${item.item_name}",${item.required_qty},${buildTargetQty},${totalTargetDemand},${inQty},${shortage > 0 ? shortage : 0},"${status}","${remark}"\n`;
@@ -1202,8 +1202,8 @@
                 tr.className = "hover:bg-slate-50 transition-colors";
 
                 let statusBadge = shortage <= 0 
-                    ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">齊料 (已到位)</span>`
-                    : `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">缺數中 (${shortage})</span>`;
+                    ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">齊料</span>`
+                    : `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">缺料</span>`;
 
                 if (isBottleneck && shortage > 0) {
                     statusBadge += `<span class="ml-1 px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-semibold">生產瓶頸</span>`;
