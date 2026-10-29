@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DL 入出庫明細與庫存管理系統</title>
+    <title>入出庫明細與庫存管理系統</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -25,7 +25,7 @@
                     <i data-lucide="boxes" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold text-slate-900 leading-none">DL 入出庫明細與庫存系統</h1>
+                    <h1 class="text-xl font-bold text-slate-900 leading-none">入出庫明細與庫存系統</h1>
                     <span class="text-xs text-slate-500">Inventory & BOM Reconciliation System</span>
                 </div>
             </div>
@@ -785,7 +785,7 @@
                     await api('/api/bom',{method:'POST',body:rows}); await loadAllData();
                     const mergedCount=sourceRows.length-rows.length;
                     const conflictNotice=nameConflicts.length?`\n品名不同的料號已保留第一列品名：${nameConflicts.slice(0,5).join('；')}${nameConflicts.length>5?'等':''}`:'';
-                    const projectNotice=projectConflicts.length?`\n注意：${projectConflicts.slice(0,5).map(x=>`${x.item_no} 同時出現在多個專案`).join('；')}${projectConflicts.length>5?'等'}；合併後專案欄保留第一列的專案。`:'';
+                    const projectNotice=projectConflicts.length?`\n注意：${projectConflicts.slice(0,5).map(x=>`${x.item_no} 同時出現在多個專案`).join('；')}${projectConflicts.length>5?'等':''}；合併後專案欄保留第一列的專案。`:'';
                     alert(`匯入完成：CSV ${sourceRows.length} 列，依料號合併為 ${rows.length} 筆 BOM；${mergedCount} 列重複料號的用量已加總。${conflictNotice}${projectNotice}`);
                 } catch(err){showError(err);} finally {e.target.value='';}
             }});
