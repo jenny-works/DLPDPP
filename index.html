@@ -771,22 +771,22 @@
                     if(missing.length) throw new Error(`有 ${missing.length} 列缺少料號或品名（CSV 第 ${missing.slice(0,12).map(x=>x.csvRow).join('、')} 列${missing.length>12?'等':''}）。已取消匯入，請補齊後再試。`);
                     const invalidQty=sourceRows.filter(x=>!Number.isFinite(x.required_qty)||x.required_qty<=0);
                     if(invalidQty.length) throw new Error(`有 ${invalidQty.length} 列的單機 BOM 用量不是大於 0 的數字（CSV 第 ${invalidQty.slice(0,12).map(x=>x.csvRow).join('、')} 列${invalidQty.length>12?'等':''}）。已取消匯入，請修正後再試。`);
-                    const grouped=new Map(),nameConflicts=[];
+                    const grouped=new Map(),nameConflicts=[],projectConflicts=[];
                     sourceRows.forEach(row=>{
-                        const key=`${row.project}__${row.item_no}`;
+                        const key=row.item_no;
                         const current=grouped.get(key);
                         if(!current){grouped.set(key,{project:row.project,item_no:row.item_no,item_name:row.item_name,required_qty:row.required_qty,remark:row.remark,_source_rows:[row.csvRow],_names:[row.item_name]});return;}
                         current.required_qty+=row.required_qty;
                         current._source_rows.push(row.csvRow);
                         if(!current._names.includes(row.item_name)) current._names.push(row.item_name);
-                        if(row.item_name) current.item_name=row.item_name;
-                        if(row.remark) current.remark=row.remark;
+                        if(row.project!==current.project&&!projectConflicts.some(x=>x.item_no===row.item_no)) projectConflicts.push({item_no:row.item_no,firstProject:current.project});
                     });
-                    const rows=[...grouped.values()].map(item=>{if(item._names.length>1)nameConflicts.push(`${item.item_no}（第 ${item._source_rows.join('、')} 列，已保留最後一列品名「${item.item_name}」）`);delete item._source_rows;delete item._names;return item;});
+                    const rows=[...grouped.values()].map(item=>{if(item._names.length>1)nameConflicts.push(`${item.item_no}（已保留第一列品名「${item.item_name}」）`);delete item._source_rows;delete item._names;return item;});
                     await api('/api/bom',{method:'POST',body:rows}); await loadAllData();
                     const mergedCount=sourceRows.length-rows.length;
-                    const conflictNotice=nameConflicts.length?`\n注意：以下料號品名不同，已保留最後一列的品名：${nameConflicts.slice(0,5).join('；')}${nameConflicts.length>5?'等':''}`:'';
-                    alert(`匯入完成：CSV ${sourceRows.length} 列，合併為 ${rows.length} 筆 BOM；${mergedCount} 列重複料號的用量已加總。${conflictNotice}`);
+                    const conflictNotice=nameConflicts.length?`\n品名不同的料號已保留第一列品名：${nameConflicts.slice(0,5).join('；')}${nameConflicts.length>5?'等':''}`:'';
+                    const projectNotice=projectConflicts.length?`\n注意：${projectConflicts.slice(0,5).map(x=>`${x.item_no} 同時出現在多個專案`).join('；')}${projectConflicts.length>5?'等'}；合併後專案欄保留第一列的專案。`:'';
+                    alert(`匯入完成：CSV ${sourceRows.length} 列，依料號合併為 ${rows.length} 筆 BOM；${mergedCount} 列重複料號的用量已加總。${conflictNotice}${projectNotice}`);
                 } catch(err){showError(err);} finally {e.target.value='';}
             }});
         }
