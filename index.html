@@ -1202,11 +1202,9 @@
                 tr.className = "hover:bg-slate-50 transition-colors";
 
                 let statusBadge = shortage <= 0 
-                    ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">齊料 (已到位)</span>`
+                    ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">齊料</span>`
                     : `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">缺數中 (${shortage})</span>`;
 
-                if (isBottleneck && shortage > 0) {
-                    statusBadge += `<span class="ml-1 px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-semibold">生產瓶頸</span>`;
                 }
 
                 const actionButtons = isAdminMode ? `
