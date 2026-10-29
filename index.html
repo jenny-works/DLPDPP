@@ -442,7 +442,10 @@
         document.addEventListener("DOMContentLoaded", async () => {
             try {
                 if (!window.INVENTORY_FIREBASE_CONFIG || !window.INVENTORY_FIREBASE_CONFIG.apiKey || window.INVENTORY_FIREBASE_CONFIG.apiKey.includes('請填')) {
-                    throw new Error('請先設定 public/firebase-config.js 的 Firebase 網頁設定。');
+                    throw new Error('找不到已填妥的 firebase-config.js。請確認它與 index.html 位於同一資料夾，且已填入 Firebase 網頁設定。');
+                }
+                if (typeof firebase === 'undefined' || typeof firebase.auth !== 'function' || typeof firebase.firestore !== 'function') {
+                    throw new Error('Firebase SDK 未載入。請確認網路可連線，並透過 GitHub Pages 或 localhost 開啟網站；不要直接以 file:// 雙擊 index.html。');
                 }
                 firebase.initializeApp(window.INVENTORY_FIREBASE_CONFIG);
                 fbAuth = firebase.auth(); fbDb = firebase.firestore();
@@ -503,7 +506,7 @@
             lucide.createIcons();
         }
 
-        async function toggleAdminMode() { try { if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
+        async function toggleAdminMode() { try { if (!fbAuth) throw new Error('Firebase Auth 尚未初始化。請確認 firebase-config.js 與 index.html 在同一資料夾、設定值已填妥，並透過 GitHub Pages 或 localhost 開啟。'); if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
 
         async function loadAllData() {
             if (!fbAuth?.currentUser) return;
