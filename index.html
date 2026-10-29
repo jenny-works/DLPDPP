@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>入出庫明細與庫存管理系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- PapaParse for robust CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans antialiased">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-indigo-600 text-white rounded-lg shadow-sm">
+                    <i data-lucide="boxes" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 leading-none">入出庫明細與庫存系統</h1>
+                    <span class="text-xs text-slate-500">Inventory & BOM Reconciliation System · 純本地模式（不使用 Supabase）</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <!-- 權限模式標籤 -->
+                <span id="role-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 flex items-center space-x-1">
+                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                    <span>唯讀檢視模式</span>
+                </span>
+
+                <!-- 管理員解鎖 / 切換按鈕 -->
+                <button id="btn-admin-toggle" onclick="toggleAdminMode()" class="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                    <i id="admin-icon" data-lucide="lock" class="w-3.5 h-3.5"></i>
+                    <span id="admin-btn-text">管理員登入</span>
+                </button>
+<!-- 新增明細按鈕 (僅管理員可見) -->
+                <button id="btn-add-record" onclick="openModal()" class="hidden flex items-center space-x-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium text-sm transition shadow-sm hover:shadow">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span>新增明細</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+        <!-- 數據統計卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                <div class="p-3 bg-blue-50 text-blue-600 rounded-lg">
+                    <i data-lucide="list" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 font-medium">總記錄數</p>
+                    <h3 id="stat-total-count" class="text-2xl font-bold text-slate-800">0 <span class="text-xs font-normal text-slate-500">筆</span></h3>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+                    <i data-lucide="arrow-down-left" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 font-medium">總入庫量</p>
+                    <h3 id="stat-total-in" class="text-2xl font-bold text-emerald-600">0</h3>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                <div class="p-3 bg-rose-50 text-rose-600 rounded-lg">
+                    <i data-lucide="arrow-up-right" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 font-medium">總出貨量</p>
+                    <h3 id="stat-total-out" class="text-2xl font-bold text-rose-600">0</h3>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                <div class="p-3 bg-amber-50 text-amber-600 rounded-lg">
+                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 font-medium">目標缺數項目</p>
+                    <h3 id="stat-shortage-count" class="text-2xl font-bold text-amber-600">0 <span class="text-xs font-normal text-slate-500">項</span></h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- 頁籤選單 -->
+        <div class="border-b border-slate-200 flex space-x-4">
+            <button id="tab-records-btn" onclick="switchTab('records')" class="pb-3 px-1 border-b-2 border-indigo-600 text-indigo-600 font-bold text-sm flex items-center space-x-2">
+                <i data-lucide="file-text" class="w-4 h-4"></i>
+                <span>明細紀錄列表</span>
+            </button>
+            <button id="tab-stock-btn" onclick="switchTab('stock')" class="pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center space-x-2">
+                <i data-lucide="package-check" class="w-4 h-4"></i>
+                <span>依料號庫存統計</span>
+            </button>
+            <button id="tab-bom-btn" onclick="switchTab('bom')" class="pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center space-x-2">
+                <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+                <span>缺數明細</span>
+            </button>
+        </div>
+
+        <!-- 分頁 1: 明細紀錄列表 -->
+        <div id="tab-records-view" class="space-y-4">
+            <!-- 篩選列 -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex flex-1 flex-col sm:flex-row items-center gap-3">
+                    <div class="relative flex-1 w-full sm:w-auto">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="filter-search" oninput="applyFilters()" placeholder="搜尋..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+
+                    <select id="filter-record-project" onchange="applyFilters()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                        <option value="ALL">全部專案</option>
+                    </select>
+
+                    <select id="filter-type" onchange="applyFilters()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                        <option value="ALL">全部類型</option>
+                        <option value="IN">入庫 (IN)</option>
+                        <option value="OUT">出庫 (OUT)</option>
+                    </select>
+
+                    <div class="flex items-center space-x-2 w-full sm:w-auto">
+                        <input type="date" id="filter-date-start" onchange="applyFilters()" class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                        <span class="text-slate-400 text-xs">至</span>
+                        <input type="date" id="filter-date-end" onchange="applyFilters()" class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 self-end md:self-auto">
+                    <button onclick="exportSelectedRecords()" class="px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>匯出明細</span>
+                    </button>
+                    <button onclick="resetFilters()" class="px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-600 rounded-lg text-sm flex items-center space-x-1 transition">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        <span>重設篩選</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 明細表格 -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-600 tracking-wider">
+                                <th class="p-4 w-10 text-center">
+                                    <input type="checkbox" id="select-all-records" onclick="toggleSelectAllRecords(this)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                                </th>
+                                <th class="p-4 cursor-pointer hover:bg-slate-200" onclick="toggleSort('date')">
+                                    <div class="flex items-center space-x-1">
+                                        <span>日期</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
+                                    </div>
+                                </th>
+                                <th class="p-4">類型</th>
+                                <th class="p-4">料號</th>
+                                <th class="p-4">品名</th>
+                                <th class="p-4 text-right cursor-pointer hover:bg-slate-200" onclick="toggleSort('quantity')">
+                                    <div class="flex items-center justify-end space-x-1">
+                                        <span>數量</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
+                                    </div>
+                                </th>
+                                <th class="p-4">專案</th>
+                                <th class="p-4">備註</th>
+                                <th class="p-4">附件檔案</th>
+                                <th class="p-4 text-center admin-only hidden">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-slate-200 text-sm"></tbody>
+                    </table>
+                </div>
+
+                <div id="empty-state" class="p-12 text-center text-slate-400 space-y-3 hidden">
+                    <i data-lucide="inbox" class="w-12 h-12 mx-auto stroke-1"></i>
+                    <p class="text-base font-medium text-slate-600">目前沒有找到符合條件的明細</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分頁 2: 依料號庫存統計 -->
+        <div id="tab-stock-view" class="space-y-4 hidden">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                <div class="relative flex-1 max-w-md">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="filter-stock-search" oninput="renderStockTable()" placeholder="搜尋..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-600 tracking-wider">
+                                <th class="p-4">料號</th>
+                                <th class="p-4">品名</th>
+                                <th class="p-4 text-right">累計入庫</th>
+                                <th class="p-4 text-right">累計出庫</th>
+                                <th class="p-4 text-right">現有庫存</th>
+                                <th class="p-4 text-center">狀態標籤</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stock-table-body" class="divide-y divide-slate-200 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分頁 3: BOM 需求與缺數勾稽 (含整機組裝齊料試算) -->
+        <div id="tab-bom-view" class="space-y-4 hidden">
+
+            <!-- 齊料試算工具列 -->
+            <div class="bg-indigo-900 text-white p-5 rounded-xl shadow-md border border-indigo-800 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2.5 bg-indigo-700/60 rounded-lg border border-indigo-500/30">
+                        <i data-lucide="cpu" class="w-6 h-6 text-indigo-200"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                            <span>整機組裝齊料試算</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-700 text-indigo-200 font-normal">多階段模擬</span>
+                        </h3>
+                        <p class="text-xs text-indigo-200 mt-0.5">輸入預計組裝的整機數量，系統將動態計算各零件所需的目標總數量與齊料狀態。</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-4 bg-indigo-950/60 p-3 rounded-lg border border-indigo-700/50 w-full md:w-auto justify-between md:justify-start">
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs font-semibold text-indigo-200 whitespace-nowrap">預計組裝整機台數：</label>
+                        <input type="number" id="target-build-qty" min="1" value="1" oninput="renderBomTable()" class="w-20 px-2.5 py-1.5 bg-indigo-900 border border-indigo-600 rounded-lg text-sm text-center font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        <span class="text-xs text-indigo-300">台</span>
+                    </div>
+
+                    <div class="h-8 w-px bg-indigo-700/60 hidden sm:block"></div>
+
+                    <!-- 即時試算目前最高可組裝台數 -->
+                    <div class="text-right">
+                        <span class="text-[10px] text-indigo-300 block uppercase tracking-wider font-semibold">目前備料最多可組裝</span>
+                        <div id="max-producible-badge" onclick="applyMaxProducible()" class="text-lg font-black text-emerald-400 hover:text-emerald-300 cursor-pointer transition underline decoration-dotted" title="點擊自動填入可組裝台數">
+                            0 台
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex flex-1 flex-col sm:flex-row items-center gap-3">
+                    <div class="relative flex-1 w-full sm:w-auto">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="filter-bom-search" oninput="renderBomTable()" placeholder="搜尋..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <select id="filter-bom-project" onchange="renderBomTable()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                        <option value="ALL">全部專案</option>
+                    </select>
+                    <select id="filter-bom-shortage" onchange="renderBomTable()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                        <option value="ALL">全部狀態</option>
+                        <option value="SHORTAGE_ONLY">僅顯示目標缺數項目</option>
+                        <option value="FULFILLED_ONLY">僅顯示齊料項目</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <button onclick="exportSelectedBom()" class="px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>匯出明細</span>
+                    </button>
+                    <button onclick="downloadBomTemplate()" class="px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span>下載 BOM 範本</span>
+                    </button>
+                    <button onclick="openBomModal()" class="admin-only hidden px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center space-x-1 transition shadow-sm">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>手動新增 BOM 需求</span>
+                    </button>
+                    <label class="admin-only hidden cursor-pointer px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium flex items-center space-x-1 transition shadow-sm">
+                        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                        <span>匯入 BOM 表 (CSV)</span>
+                        <input type="file" id="bom-csv-input" accept=".csv" onchange="handleBomImport(event)" class="hidden">
+                    </label>
+                    <button onclick="deleteSelectedBomItems()" class="admin-only hidden px-3 py-2 border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>刪除選取 BOM</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 border-b border-slate-200 text-xs font-semibold text-slate-600 tracking-wider">
+                                <th class="p-4 w-10 text-center">
+                                    <input type="checkbox" id="select-all-bom" onclick="toggleSelectAllBom(this)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                                </th>
+                                <th class="p-4">專案名稱</th>
+                                <th class="p-4">料號</th>
+                                <th class="p-4">品名</th>
+                                <th class="p-4 text-right">單機 BOM 用量</th>
+                                <th class="p-4 text-right bg-indigo-50/50 text-indigo-900">目標總需求量</th>
+                                <th class="p-4 text-right">專案累計入庫</th>
+                                <th class="p-4 text-right">目標缺數</th>
+                                <th class="p-4 text-center">齊料狀態</th>
+                                <th class="p-4">備註</th>
+                                <th class="p-4 text-center admin-only hidden">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bom-table-body" class="divide-y divide-slate-200 text-sm"></tbody>
+                    </table>
+                </div>
+
+                <div id="bom-empty-state" class="p-12 text-center text-slate-400 space-y-3 hidden">
+                    <i data-lucide="file-spreadsheet" class="w-12 h-12 mx-auto stroke-1"></i>
+                    <p class="text-base font-medium text-slate-600">目前尚無 BOM 需求資料</p>
+                    <p class="text-xs text-slate-400">管理員可點擊右上角「匯入 BOM 表 (CSV)」或「手動新增 BOM 需求」建立備料勾稽清單。</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 新增 / 編輯 BOM 需求 Modal -->
+    <div id="modal-bom" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <h3 id="modal-bom-title" class="font-bold text-slate-800 text-base">新增 BOM 需求項目</h3>
+                <button onclick="closeBomModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="bom-form" onsubmit="handleBomFormSubmit(event)" class="p-6 space-y-4">
+                <input type="hidden" id="bom-edit-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">專案名稱 *</label>
+                    <input type="text" id="bom-project" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">料號 *</label>
+                    <input type="text" id="bom-item-no" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">品名 *</label>
+                    <input type="text" id="bom-item-name" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">單機 BOM 用量 (1台所需) *</label>
+                    <input type="number" min="0.01" step="any" id="bom-required-qty" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">備註</label>
+                    <input type="text" id="bom-remark" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeBomModal()" class="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-100">取消</button>
+                    <button type="submit" id="btn-save-bom" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 shadow-sm">儲存 BOM 需求</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 新增 / 編輯 明細 Modal -->
+    <div id="modal-form" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-4xl overflow-hidden my-8">
+            <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <h3 id="modal-title" class="font-bold text-slate-800 text-lg">新增入出庫明細</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="record-form" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4">
+                <input type="hidden" id="form-edit-id">
+                <div id="items-container" class="space-y-4 max-h-[60vh] overflow-y-auto pr-2"></div>
+
+                <div id="add-more-row-btn-container" class="pt-2">
+                    <button type="button" onclick="addItemRow()" class="w-full py-2 border-2 border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm font-semibold flex items-center justify-center space-x-1 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>+ 新增一列項目</span>
+                    </button>
+                </div>
+
+                <div class="pt-4 border-t border-slate-200 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-100">取消</button>
+                    <button type="submit" id="btn-save-record" class="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm">儲存送出</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- PIN 碼解鎖 Modal -->
+    <div id="modal-pin" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm p-6 space-y-4">
+            <div class="flex items-center space-x-3 text-indigo-600">
+                <div class="p-2 bg-indigo-100 rounded-full">
+                    <i data-lucide="shield-check" class="w-6 h-6"></i>
+                </div>
+                <h3 class="font-bold text-slate-800 text-lg">管理員身份驗證</h3>
+            </div>
+            <p class="text-xs text-slate-500">請輸入管理員 PIN 碼以切換編輯權限：</p>
+            <div>
+                <input type="password" id="input-pin-code" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-center tracking-widest text-lg font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <p id="pin-error-msg" class="text-xs text-rose-600 mt-1 hidden">PIN 碼不正確，請重新輸入</p>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button onclick="closePinModal()" class="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-100">取消</button>
+                <button onclick="verifyPinCode()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">解鎖管理員</button>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- 刪除確認 Modal -->
+    <div id="modal-delete" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
+            <div class="flex items-center space-x-3 text-rose-600">
+                <div class="p-2 bg-rose-100 rounded-full">
+                    <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                </div>
+                <h3 class="font-bold text-slate-800 text-lg">確認要刪除嗎？</h3>
+            </div>
+            <p class="text-sm text-slate-600">刪除後此筆紀錄將無法恢復。確定要繼續執行嗎？</p>
+            <div class="flex justify-end space-x-3 pt-2">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-100">取消</button>
+                <button id="btn-confirm-delete" class="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-medium hover:bg-rose-700">確認刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS 核心邏輯 -->
+    <script>
+        const PIN_CODE = "90440155";
+        // 純本地模式：不連接任何外部資料庫。附件以 Data URL 儲存，並納入 JSON 備份。
+        let isAdminMode = false;
+        let records = [];
+        let bomList = [];
+        let filteredRecords = [];
+        let currentSort = { field: 'date', dir: 'desc' };
+        let deleteTargetId = null;
+        let rowCounter = 0;
+        let maxProducibleCalculated = 0;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initAdminRole();
+            loadAllData();
+            lucide.createIcons();
+        });
+
+        function initAdminRole() {
+            // 管理員狀態不跨工作階段保存，避免共用電腦一直保持解鎖。
+            isAdminMode = false;
+            updateRoleUI();
+        }
+
+        function updateRoleUI() {
+            const badge = document.getElementById('role-badge');
+            const adminBtnText = document.getElementById('admin-btn-text');
+            const adminIcon = document.getElementById('admin-icon');
+            const btnAdd = document.getElementById('btn-add-record');
+            const adminElements = document.querySelectorAll('.admin-only');
+            if (isAdminMode) {
+                badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 flex items-center space-x-1";
+                badge.innerHTML = `<i data-lucide="shield-check" class="w-3.5 h-3.5"></i><span>管理員模式</span>`;
+                adminBtnText.textContent = "退出管理員";
+                adminIcon.setAttribute('data-lucide', 'unlock');
+                btnAdd.classList.remove('hidden');
+                adminElements.forEach(el => el.classList.remove('hidden'));
+            } else {
+                badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 flex items-center space-x-1";
+                badge.innerHTML = `<i data-lucide="eye" class="w-3.5 h-3.5"></i><span>唯讀檢視模式</span>`;
+                adminBtnText.textContent = "管理員登入";
+                adminIcon.setAttribute('data-lucide', 'lock');
+                btnAdd.classList.add('hidden');
+                adminElements.forEach(el => el.classList.add('hidden'));
+            }
+            lucide.createIcons();
+        }
+
+        function toggleAdminMode() {
+            if (isAdminMode) {
+                isAdminMode = false;
+                updateRoleUI();
+                renderTable();
+                renderBomTable();
+            } else {
+                document.getElementById('input-pin-code').value = '';
+                document.getElementById('pin-error-msg').classList.add('hidden');
+                document.getElementById('modal-pin').classList.remove('hidden');
+            }
+        }
+
+        function verifyPinCode() {
+            const pin = document.getElementById('input-pin-code').value.trim();
+            if (pin === PIN_CODE) {
+                isAdminMode = true;
+                closePinModal();
+                updateRoleUI();
+                renderTable();
+                renderBomTable();
+            } else {
+                document.getElementById('pin-error-msg').classList.remove('hidden');
+            }
+        }
+
+        function closePinModal() {
+            document.getElementById('modal-pin').classList.add('hidden');
+        }
+
+        async function loadAllData() {
+            await loadRecords();
+            await loadBomData();
+        }
+
+        async function loadRecords() {
+            try { records = JSON.parse(localStorage.getItem('demo_records') || '[]'); }
+            catch (_) { records = []; }
+            // 不自動塞入假資料，首次使用保持空白。
+            updateRecordProjectDropdown();
+            applyFilters();
+            renderStockTable();
+        }
+
+        async function loadBomData() {
+            try { bomList = JSON.parse(localStorage.getItem('bom_records') || '[]'); }
+            catch (_) { bomList = []; }
+            renderBomTable();
+        }
+
+        function updateRecordProjectDropdown() {
+            const select = document.getElementById('filter-record-project');
+            if (!select) return;
+            const currentSelected = select.value;
+            
+            const projects = new Set();
+            records.forEach(r => {
+                if (r.project && r.project.trim()) {
+                    projects.add(r.project.trim());
+                }
+            });
+
+            select.innerHTML = '<option value="ALL">全部專案</option>';
+            Array.from(projects).sort().forEach(proj => {
+                const opt = document.createElement('option');
+                opt.value = proj;
+                opt.textContent = proj;
+                if (proj === currentSelected) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        function updateBomProjectDropdown() {
+            const select = document.getElementById('filter-bom-project');
+            const currentSelected = select.value;
+            
+            const projects = new Set();
+            bomList.forEach(item => {
+                if (item.project && item.project.trim()) {
+                    projects.add(item.project.trim());
+                }
+            });
+
+            select.innerHTML = '<option value="ALL">全部專案</option>';
+            Array.from(projects).sort().forEach(proj => {
+                const opt = document.createElement('option');
+                opt.value = proj;
+                opt.textContent = proj;
+                if (proj === currentSelected) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        function exportSelectedRecords() {
+            const checkedBoxes = document.querySelectorAll('.record-checkbox:checked');
+            let targetRecords = [];
+
+            if (checkedBoxes.length > 0) {
+                const checkedIds = Array.from(checkedBoxes).map(cb => cb.value);
+                targetRecords = records.filter(r => checkedIds.includes(String(r.id)));
+            } else {
+                targetRecords = filteredRecords;
+            }
+
+            if (targetRecords.length === 0) {
+                alert("目前沒有可匯出的明細資料！");
+                return;
+            }
+
+            let csv = "日期,類型,料號,品名,數量,專案,備註\n";
+            targetRecords.forEach(r => {
+                const typeText = r.type === 'IN' ? '入庫' : '出庫';
+                const remark = (r.remark || '').replace(/"/g, '""');
+                csv += `"${r.date}","${typeText}","${r.item_no}","${r.item_name}",${r.quantity},"${r.project || ''}","${remark}"\n`;
+            });
+
+            downloadCSV(csv, "Inventory_Records_明細匯出.csv");
+        }
+
+        function exportSelectedBom() {
+            const checkedBoxes = document.querySelectorAll('.bom-checkbox:checked');
+            const buildTargetQty = Math.max(1, parseFloat(document.getElementById('target-build-qty').value) || 1);
+            let targetBoms = [];
+
+            const projectInMap = {};
+            records.forEach(r => {
+                if (r.type === 'IN' && r.project && r.item_no) {
+                    const key = `${r.project.trim()}__${r.item_no.trim()}`;
+                    projectInMap[key] = (projectInMap[key] || 0) + (Number(r.quantity) || 0);
+                }
+            });
+
+            if (checkedBoxes.length > 0) {
+                const checkedIds = Array.from(checkedBoxes).map(cb => cb.value);
+                targetBoms = bomList.filter(b => checkedIds.includes(String(b.id)));
+            } else {
+                targetBoms = bomList;
+            }
+
+            if (targetBoms.length === 0) {
+                alert("目前沒有可匯出的 BOM 資料！");
+                return;
+            }
+
+            let csv = `專案名稱,料號,品名,單機BOM用量,目標整機台數,目標總需求量,專案累計入庫,目標缺數,齊料狀態,備註\n`;
+            targetBoms.forEach(item => {
+                const itemProj = (item.project || '').trim();
+                const key = `${itemProj}__${(item.item_no || '').trim()}`;
+                const inQty = projectInMap[key] || 0;
+                const totalTargetDemand = item.required_qty * buildTargetQty;
+                const shortage = totalTargetDemand - inQty;
+                const status = shortage <= 0 ? "已齊料" : `缺數中(${shortage})`;
+                const remark = (item.remark || '').replace(/"/g, '""');
+
+                csv += `"${item.project}","${item.item_no}","${item.item_name}",${item.required_qty},${buildTargetQty},${totalTargetDemand},${inQty},${shortage > 0 ? shortage : 0},"${status}","${remark}"\n`;
+            });
+
+            downloadCSV(csv, "BOM_Assembly_Reconciliation_組裝齊料匯出.csv");
+        }
+
+        function downloadCSV(csvContent, filename) {
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+
+        function openBomModal(id = null) {
+            document.getElementById('bom-edit-id').value = '';
+            document.getElementById('bom-project').value = '';
+            document.getElementById('bom-item-no').value = '';
+            document.getElementById('bom-item-name').value = '';
+            document.getElementById('bom-required-qty').value = '';
+            document.getElementById('bom-remark').value = '';
+
+            if (id) {
+                const item = bomList.find(b => String(b.id) === String(id));
+                if (item) {
+                    document.getElementById('modal-bom-title').textContent = "編輯 BOM 需求項目";
+                    document.getElementById('bom-edit-id').value = item.id;
+                    document.getElementById('bom-project').value = item.project || '';
+                    document.getElementById('bom-item-no').value = item.item_no || '';
+                    document.getElementById('bom-item-name').value = item.item_name || '';
+                    document.getElementById('bom-required-qty').value = item.required_qty || 0;
+                    document.getElementById('bom-remark').value = item.remark || '';
+                }
+            } else {
+                document.getElementById('modal-bom-title').textContent = "新增 BOM 需求項目";
+            }
+
+            document.getElementById('modal-bom').classList.remove('hidden');
+        }
+
+        function closeBomModal() {
+            document.getElementById('modal-bom').classList.add('hidden');
+        }
+
+        async function handleBomFormSubmit(e) {
+            e.preventDefault();
+            const btnSave = document.getElementById('btn-save-bom');
+            btnSave.disabled = true;
+            btnSave.textContent = "處理中...";
+            try {
+                const editId = document.getElementById('bom-edit-id').value;
+                const payload = {
+                    project: document.getElementById('bom-project').value.trim(),
+                    item_no: document.getElementById('bom-item-no').value.trim(),
+                    item_name: document.getElementById('bom-item-name').value.trim(),
+                    required_qty: parseFloat(document.getElementById('bom-required-qty').value) || 0,
+                    remark: document.getElementById('bom-remark').value.trim()
+                };
+                if (editId) {
+                    const idx = bomList.findIndex(b => String(b.id) === String(editId));
+                    if (idx !== -1) bomList[idx] = { ...bomList[idx], ...payload };
+                } else {
+                    bomList.push({ id: 'bom-' + Date.now() + Math.random().toString(36).substring(2, 7), ...payload });
+                }
+                saveLocalData();
+                renderBomTable();
+                closeBomModal();
+            } catch (err) { alert('儲存 BOM 失敗：' + err.message); }
+            finally { btnSave.disabled = false; btnSave.textContent = "儲存 BOM 需求"; }
+        }
+
+        async function deleteBomItem(id) {
+            if (!confirm("確定要刪除這筆 BOM 需求嗎？")) return;
+            bomList = bomList.filter(b => String(b.id) !== String(id));
+            saveLocalData(); renderBomTable();
+        }
+
+        async function deleteSelectedBomItems() {
+            const checkedBoxes = document.querySelectorAll('.bom-checkbox:checked');
+            if (checkedBoxes.length === 0) { alert("請先勾選要刪除的 BOM 項目！"); return; }
+            if (confirm(`確定要刪除選取的 ${checkedBoxes.length} 筆 BOM 需求嗎？`)) {
+                const checkedIds = Array.from(checkedBoxes).map(cb => cb.value);
+                bomList = bomList.filter(b => !checkedIds.includes(String(b.id)));
+                saveLocalData(); renderBomTable();
+            }
+        }
+
+        function toggleSelectAllRecords(master) {
+            const checkboxes = document.querySelectorAll('.record-checkbox');
+            checkboxes.forEach(cb => cb.checked = master.checked);
+        }
+
+        function toggleSelectAllBom(master) {
+            const checkboxes = document.querySelectorAll('.bom-checkbox');
+            checkboxes.forEach(cb => cb.checked = master.checked);
+        }
+
+        function handleBomImport(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                encoding: "UTF-8",
+                complete: async function(results) {
+                    let addedCount = 0;
+                    let updatedCount = 0;
+                    let totalImportedRows = 0;
+                    let totalRequiredQtySum = 0;
+
+                    for (let row of results.data) {
+                        const project = (row['專案名稱'] || row['專案'] || Object.values(row)[0] || '').trim();
+                        const item_no = (row['料號'] || Object.values(row)[1] || '').trim();
+                        const item_name = (row['品名'] || Object.values(row)[2] || '').trim();
+                        const required_qty = parseFloat(row['單機BOM用量'] || row['BOM需求量'] || row['需求量'] || Object.values(row)[3] || 0) || 0;
+                        const remark = (row['備註'] || Object.values(row)[4] || '').trim();
+
+                        if (!item_no || !item_name) continue;
+
+                        totalImportedRows++;
+                        totalRequiredQtySum += required_qty;
+
+                        const payload = { project, item_no, item_name, required_qty, remark };
+
+                        const existingIdx = bomList.findIndex(b =>
+                            (b.project || '').trim() === project &&
+                            (b.item_no || '').trim() === item_no
+                        );
+                        if (existingIdx !== -1) {
+                            bomList[existingIdx] = { ...bomList[existingIdx], ...payload };
+                            updatedCount++;
+                        } else {
+                            bomList.push({ id: 'bom-' + Date.now() + Math.random().toString(36).substring(2, 7) + totalImportedRows, ...payload });
+                            addedCount++;
+                        }
+                    }
+
+                    saveLocalData();
+                    renderBomTable();
+
+                    alert(`🎉 匯入完成！\n\n• 成功匯入總項目：${totalImportedRows} 筆\n  (新增：${addedCount} 筆 / 更新：${updatedCount} 筆)\n• 單機 BOM 用量總和：${totalRequiredQtySum.toLocaleString()}`);
+                    e.target.value = '';
+                },
+                error: function(err) {
+                    alert("CSV 檔案解析失敗：" + err.message);
+                    e.target.value = '';
+                }
+            });
+        }
+
+        function downloadBomTemplate() {
+            const csvContent = "專案名稱,料號,品名,單機BOM用量,備註\n,,,,\n,,,,\n,,,,";
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "BOM_Assembly_Template_整機組裝範本.csv";
+            link.click();
+        }
+
+        function switchTab(tab) {
+            const views = {
+                records: document.getElementById('tab-records-view'),
+                stock: document.getElementById('tab-stock-view'),
+                bom: document.getElementById('tab-bom-view')
+            };
+            const btns = {
+                records: document.getElementById('tab-records-btn'),
+                stock: document.getElementById('tab-stock-btn'),
+                bom: document.getElementById('tab-bom-btn')
+            };
+
+            Object.keys(views).forEach(k => {
+                if (k === tab) {
+                    views[k].classList.remove('hidden');
+                    btns[k].className = "pb-3 px-1 border-b-2 border-indigo-600 text-indigo-600 font-bold text-sm flex items-center space-x-2";
+                } else {
+                    views[k].classList.add('hidden');
+                    btns[k].className = "pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center space-x-2";
+                }
+            });
+
+            if (tab === 'stock') renderStockTable();
+            if (tab === 'bom') renderBomTable();
+        }
+
+        function addItemRow(data = null) {
+            rowCounter++;
+            const container = document.getElementById('items-container');
+            const rowDiv = document.createElement('div');
+            rowDiv.id = `item-row-${rowCounter}`;
+            rowDiv.className = "p-4 bg-slate-50 rounded-lg border border-slate-200 relative space-y-3";
+
+            const today = new Date().toISOString().split('T')[0];
+
+            rowDiv.innerHTML = `
+                <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <span class="text-xs font-bold text-slate-500">項目 #${rowCounter}</span>
+                    <button type="button" onclick="removeItemRow(${rowCounter})" class="remove-row-btn text-xs text-rose-600 hover:underline flex items-center space-x-1">
+                        <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+                        <span>移除列</span>
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">日期 *</label>
+                        <input type="date" required value="${data ? data.date : today}" class="item-date w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">類型 *</label>
+                        <select required class="item-type w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            <option value="IN" ${data && data.type === 'IN' ? 'selected' : ''}>入庫 (IN)</option>
+                            <option value="OUT" ${data && data.type === 'OUT' ? 'selected' : ''}>出庫 (OUT)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">料號 *</label>
+                        <input type="text" required value="${data ? data.item_no : ''}" class="item-no w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">數量 *</label>
+                        <input type="number" min="0.01" step="any" required value="${data ? data.quantity : ''}" class="item-qty w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">品名 *</label>
+                        <input type="text" required value="${data ? data.item_name : ''}" class="item-name w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">專案</label>
+                        <input type="text" value="${data ? data.project || '' : ''}" class="item-project w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">夾帶附件</label>
+                        <input type="file" class="item-file w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-indigo-50 file:text-indigo-700">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">備註</label>
+                        <input type="text" value="${data ? data.remark || '' : ''}" class="item-remark w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+            `;
+            container.appendChild(rowDiv);
+            lucide.createIcons();
+            updateRemoveButtons();
+        }
+
+        function removeItemRow(id) {
+            const row = document.getElementById(`item-row-${id}`);
+            if (row) row.remove();
+            updateRemoveButtons();
+        }
+
+        function updateRemoveButtons() {
+            const rows = document.querySelectorAll('#items-container > div');
+            rows.forEach(r => {
+                const btn = r.querySelector('.remove-row-btn');
+                if (btn) btn.style.display = rows.length === 1 ? 'none' : 'inline-flex';
+            });
+        }
+
+        async function uploadFile(file) {
+            if (!file) return { url: "", name: "" };
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve({ url: e.target.result, name: file.name, size: file.size, type: file.type });
+                reader.onerror = () => reject(new Error('附件讀取失敗'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const btnSave = document.getElementById('btn-save-record');
+            btnSave.disabled = true;
+            btnSave.textContent = "處理中...";
+
+            const editId = document.getElementById('form-edit-id').value;
+            const rows = document.querySelectorAll('#items-container > div');
+            const newPayloads = [];
+
+            for (let row of rows) {
+                const date = row.querySelector('.item-date').value;
+                const type = row.querySelector('.item-type').value;
+                const item_no = row.querySelector('.item-no').value.trim();
+                const item_name = row.querySelector('.item-name').value.trim();
+                const quantity = parseFloat(row.querySelector('.item-qty').value);
+                const project = row.querySelector('.item-project').value.trim();
+                const remark = row.querySelector('.item-remark').value.trim();
+                const fileInput = row.querySelector('.item-file');
+
+                let attachment_url = "";
+                let attachment_name = "";
+
+                if (fileInput && fileInput.files.length > 0) {
+                    const uploaded = await uploadFile(fileInput.files[0]);
+                    attachment_url = uploaded.url;
+                    attachment_name = uploaded.name;
+                } else if (editId) {
+                    const existing = records.find(r => String(r.id) === String(editId));
+                    if (existing) {
+                        attachment_url = existing.attachment_url || "";
+                        attachment_name = existing.attachment_name || "";
+                    }
+                }
+
+                newPayloads.push({
+                    date,
+                    type,
+                    item_no,
+                    item_name,
+                    quantity,
+                    project,
+                    remark,
+                    attachment_url,
+                    attachment_name
+                });
+            }
+
+            try {
+                if (editId) {
+                    const idx = records.findIndex(r => String(r.id) === String(editId));
+                    if (idx !== -1) records[idx] = { ...records[idx], ...newPayloads[0] };
+                } else {
+                    newPayloads.forEach(p => {
+                        p.id = 'local-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
+                        records.unshift(p);
+                    });
+                }
+                saveLocalData();
+                updateRecordProjectDropdown();
+                applyFilters(); renderStockTable(); renderBomTable(); closeModal();
+            } catch (err) {
+                alert('儲存失敗：' + err.message + '\n若附件較大，請先匯出備份並減少附件大小。');
+            }
+
+            btnSave.disabled = false;
+            btnSave.textContent = "儲存送出";
+        }
+
+        function confirmDelete(id) {
+            deleteTargetId = id;
+            document.getElementById('modal-delete').classList.remove('hidden');
+            document.getElementById('btn-confirm-delete').onclick = async () => {
+                records = records.filter(r => String(r.id) !== String(deleteTargetId));
+                saveLocalData();
+                updateRecordProjectDropdown();
+                applyFilters(); renderStockTable(); renderBomTable();
+                closeDeleteModal();
+            };
+        }
+
+        function closeDeleteModal() {
+            deleteTargetId = null;
+            document.getElementById('modal-delete').classList.add('hidden');
+        }
+
+        function applyFilters() {
+            updateRecordProjectDropdown();
+
+            const search = document.getElementById('filter-search').value.toLowerCase().trim();
+            const projectFilter = document.getElementById('filter-record-project').value;
+            const type = document.getElementById('filter-type').value;
+            const startDate = document.getElementById('filter-date-start').value;
+            const endDate = document.getElementById('filter-date-end').value;
+
+            filteredRecords = records.filter(r => {
+                const itemProj = (r.project || '').trim();
+                const matchProject = projectFilter === 'ALL' || itemProj === projectFilter;
+
+                const matchSearch = !search || 
+                    (r.item_no && r.item_no.toLowerCase().includes(search)) ||
+                    (r.item_name && r.item_name.toLowerCase().includes(search)) ||
+                    (r.project && r.project.toLowerCase().includes(search)) ||
+                    (r.remark && r.remark.toLowerCase().includes(search));
+
+                const matchType = type === 'ALL' || r.type === type;
+                const matchStart = !startDate || r.date >= startDate;
+                const matchEnd = !endDate || r.date <= endDate;
+
+                return matchProject && matchSearch && matchType && matchStart && matchEnd;
+            });
+
+            filteredRecords.sort((a, b) => {
+                let valA = a[currentSort.field] || '';
+                let valB = b[currentSort.field] || '';
+                if (currentSort.field === 'quantity') {
+                    valA = Number(valA) || 0;
+                    valB = Number(valB) || 0;
+                }
+                if (valA < valB) return currentSort.dir === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSort.dir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderTable();
+            renderStats();
+        }
+
+        function toggleSort(field) {
+            if (currentSort.field === field) {
+                currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.dir = 'desc';
+            }
+            applyFilters();
+        }
+
+        function resetFilters() {
+            document.getElementById('filter-search').value = '';
+            document.getElementById('filter-record-project').value = 'ALL';
+            document.getElementById('filter-type').value = 'ALL';
+            document.getElementById('filter-date-start').value = '';
+            document.getElementById('filter-date-end').value = '';
+            applyFilters();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            const emptyState = document.getElementById('empty-state');
+            document.getElementById('select-all-records').checked = false;
+            tbody.innerHTML = '';
+
+            if (filteredRecords.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            filteredRecords.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+
+                const isIN = r.type === 'IN';
+                const typeBadge = isIN 
+                    ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800"><i data-lucide="arrow-down-left" class="w-3 h-3 mr-1"></i> 入庫</span>`
+                    : `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800"><i data-lucide="arrow-up-right" class="w-3 h-3 mr-1"></i> 出庫</span>`;
+
+                const attachmentDisplay = r.attachment_url ? `
+                    <a href="${r.attachment_url}" target="_blank" download="${r.attachment_name || 'attachment'}" class="inline-flex items-center space-x-1 text-xs text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 max-w-[140px] truncate" title="${r.attachment_name || '開啓檔案'}">
+                        <i data-lucide="paperclip" class="w-3 h-3 flex-shrink-0"></i>
+                        <span class="truncate">${r.attachment_name || '檢視檔案'}</span>
+                    </a>
+                ` : `<span class="text-slate-300 text-xs">-</span>`;
+
+                const actionButtons = isAdminMode ? `
+                    <td class="p-4 text-center admin-only">
+                        <div class="flex items-center justify-center space-x-2">
+                            <button onclick="openModal('${r.id}')" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="編輯">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="confirmDelete('${r.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="刪除">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                ` : `<td class="p-4 text-center admin-only hidden"></td>`;
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center">
+                        <input type="checkbox" value="${r.id}" class="record-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    </td>
+                    <td class="p-4 font-mono text-xs text-slate-600">${r.date || ''}</td>
+                    <td class="p-4">${typeBadge}</td>
+                    <td class="p-4 font-mono font-medium text-slate-800">${r.item_no || ''}</td>
+                    <td class="p-4 font-medium text-slate-900">${r.item_name || ''}</td>
+                    <td class="p-4 text-right font-semibold ${isIN ? 'text-emerald-600' : 'text-rose-600'}">${isIN ? '+' : '-'}${r.quantity}</td>
+                    <td class="p-4 text-slate-600"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${r.project || '無'}</span></td>
+                    <td class="p-4 text-slate-500 max-w-xs truncate" title="${r.remark || ''}">${r.remark || '-'}</td>
+                    <td class="p-4">${attachmentDisplay}</td>
+                    ${actionButtons}
+                `;
+                tbody.appendChild(tr);
+            });
+
+            lucide.createIcons();
+        }
+
+        function renderStockTable() {
+            const tbody = document.getElementById('stock-table-body');
+            const search = document.getElementById('filter-stock-search').value.toLowerCase().trim();
+            tbody.innerHTML = '';
+
+            const stockMap = {};
+
+            records.forEach(r => {
+                const key = r.item_no ? r.item_no.trim() : 'UNKNOWN';
+                if (!stockMap[key]) {
+                    stockMap[key] = {
+                        item_no: key,
+                        item_name: r.item_name || '未命名料號',
+                        in_qty: 0,
+                        out_qty: 0
+                    };
+                }
+                const qty = Number(r.quantity) || 0;
+                if (r.type === 'IN') stockMap[key].in_qty += qty;
+                if (r.type === 'OUT') stockMap[key].out_qty += qty;
+            });
+
+            const stockList = Object.values(stockMap).filter(item => {
+                return !search || 
+                    item.item_no.toLowerCase().includes(search) || 
+                    item.item_name.toLowerCase().includes(search);
+            });
+
+            stockList.forEach(item => {
+                const currentStock = item.in_qty - item.out_qty;
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+
+                let statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">庫存正常</span>`;
+                if (currentStock < 0) {
+                    statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">庫存異常 (負數)</span>`;
+                } else if (currentStock === 0) {
+                    statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">無庫存</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="p-4 font-mono font-medium text-slate-800">${item.item_no}</td>
+                    <td class="p-4 font-medium text-slate-900">${item.item_name}</td>
+                    <td class="p-4 text-right text-emerald-600 font-medium">+${item.in_qty.toLocaleString()}</td>
+                    <td class="p-4 text-right text-rose-600 font-medium">-${item.out_qty.toLocaleString()}</td>
+                    <td class="p-4 text-right font-bold text-slate-900 ${currentStock < 0 ? 'text-rose-600' : ''}">${currentStock.toLocaleString()}</td>
+                    <td class="p-4 text-center">${statusBadge}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // BOM 勾稽表格繪製 (支援整機倍率試算)
+        function renderBomTable() {
+            updateBomProjectDropdown();
+
+            const tbody = document.getElementById('bom-table-body');
+            const emptyState = document.getElementById('bom-empty-state');
+            const search = document.getElementById('filter-bom-search').value.toLowerCase().trim();
+            const projectFilter = document.getElementById('filter-bom-project').value;
+            const shortageFilter = document.getElementById('filter-bom-shortage').value;
+            const buildTargetQty = Math.max(1, parseFloat(document.getElementById('target-build-qty').value) || 1);
+
+            document.getElementById('select-all-bom').checked = false;
+            tbody.innerHTML = '';
+
+            if (bomList.length === 0) {
+                emptyState.classList.remove('hidden');
+                document.getElementById('stat-shortage-count').innerHTML = `0 <span class="text-xs font-normal text-slate-500">項</span>`;
+                document.getElementById('max-producible-badge').textContent = `0 台`;
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            const projectInMap = {};
+            records.forEach(r => {
+                if (r.type === 'IN' && r.project && r.item_no) {
+                    const key = `${r.project.trim()}__${r.item_no.trim()}`;
+                    projectInMap[key] = (projectInMap[key] || 0) + (Number(r.quantity) || 0);
+                }
+            });
+
+            // 計算目前庫存最多可組裝的整機台數（取各零件瓶頸極限）
+            let minProducible = Infinity;
+            bomList.forEach(item => {
+                const key = `${(item.project || '').trim()}__${(item.item_no || '').trim()}`;
+                const inQty = projectInMap[key] || 0;
+                const unitQty = Number(item.required_qty) || 0;
+                if (unitQty > 0) {
+                    const possibleUnits = Math.floor(inQty / unitQty);
+                    if (possibleUnits < minProducible) {
+                        minProducible = possibleUnits;
+                    }
+                }
+            });
+            maxProducibleCalculated = minProducible === Infinity ? 0 : minProducible;
+            document.getElementById('max-producible-badge').textContent = `${maxProducibleCalculated} 台`;
+
+            let totalShortageItems = 0;
+
+            const list = bomList.filter(item => {
+                const itemProj = (item.project || '').trim();
+                const matchProject = projectFilter === 'ALL' || itemProj === projectFilter;
+
+                const matchSearch = !search || 
+                    (item.item_no && item.item_no.toLowerCase().includes(search)) ||
+                    (item.item_name && item.item_name.toLowerCase().includes(search)) ||
+                    (item.remark && item.remark.toLowerCase().includes(search));
+
+                const key = `${itemProj}__${(item.item_no || '').trim()}`;
+                const inQty = projectInMap[key] || 0;
+                const totalTargetDemand = item.required_qty * buildTargetQty;
+                const shortage = Math.max(0, totalTargetDemand - inQty);
+
+                const matchShortage = 
+                    shortageFilter === 'ALL' ||
+                    (shortageFilter === 'SHORTAGE_ONLY' && shortage > 0) ||
+                    (shortageFilter === 'FULFILLED_ONLY' && shortage === 0);
+
+                return matchProject && matchSearch && matchShortage;
+            });
+
+            list.forEach(item => {
+                const key = `${(item.project || '').trim()}__${(item.item_no || '').trim()}`;
+                const inQty = projectInMap[key] || 0;
+                const totalTargetDemand = item.required_qty * buildTargetQty;
+                const shortage = totalTargetDemand - inQty;
+
+                if (shortage > 0) totalShortageItems++;
+
+                // 判斷是否為限制整機組裝的瓶頸料號
+                const isBottleneck = (inQty / (item.required_qty || 1)) < buildTargetQty;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+
+                let statusBadge = shortage <= 0 
+                    ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">齊料 (已到位)</span>`
+                    : `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">缺數中 (${shortage})</span>`;
+
+                if (isBottleneck && shortage > 0) {
+                    statusBadge += `<span class="ml-1 px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-semibold">生產瓶頸</span>`;
+                }
+
+                const actionButtons = isAdminMode ? `
+                    <td class="p-4 text-center admin-only">
+                        <div class="flex items-center justify-center space-x-2">
+                            <button onclick="openBomModal('${item.id}')" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="編輯">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteBomItem('${item.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="刪除">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                ` : `<td class="p-4 text-center admin-only hidden"></td>`;
+
+                tr.innerHTML = `
+                    <td class="p-4 text-center">
+                        <input type="checkbox" value="${item.id}" class="bom-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    </td>
+                    <td class="p-4 font-medium text-slate-800"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${item.project || '通用'}</span></td>
+                    <td class="p-4 font-mono font-medium text-slate-800">${item.item_no}</td>
+                    <td class="p-4 font-medium text-slate-900">${item.item_name}</td>
+                    <td class="p-4 text-right font-semibold text-slate-600">${item.required_qty.toLocaleString()}</td>
+                    <td class="p-4 text-right font-bold text-indigo-700 bg-indigo-50/30">${totalTargetDemand.toLocaleString()}</td>
+                    <td class="p-4 text-right font-semibold text-emerald-600">+${inQty.toLocaleString()}</td>
+                    <td class="p-4 text-right font-bold ${shortage > 0 ? 'text-rose-600' : 'text-slate-400'}">${shortage > 0 ? shortage.toLocaleString() : 0}</td>
+                    <td class="p-4 text-center">${statusBadge}</td>
+                    <td class="p-4 text-slate-500 max-w-xs truncate" title="${item.remark || ''}">${item.remark || '-'}</td>
+                    ${actionButtons}
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('stat-shortage-count').innerHTML = `${totalShortageItems} <span class="text-xs font-normal text-slate-500">項</span>`;
+            lucide.createIcons();
+        }
+
+        function applyMaxProducible() {
+            document.getElementById('target-build-qty').value = maxProducibleCalculated;
+            renderBomTable();
+        }
+
+        function renderStats() {
+            let totalIN = 0;
+            let totalOUT = 0;
+
+            filteredRecords.forEach(r => {
+                const qty = Number(r.quantity) || 0;
+                if (r.type === 'IN') totalIN += qty;
+                if (r.type === 'OUT') totalOUT += qty;
+            });
+
+            document.getElementById('stat-total-count').innerHTML = `${filteredRecords.length} <span class="text-xs font-normal text-slate-500">筆</span>`;
+            document.getElementById('stat-total-in').textContent = `+${totalIN.toLocaleString()}`;
+            document.getElementById('stat-total-out').textContent = `-${totalOUT.toLocaleString()}`;
+        }
+
+        function openModal(id = null) {
+            const container = document.getElementById('items-container');
+            container.innerHTML = '';
+            rowCounter = 0;
+
+            document.getElementById('form-edit-id').value = '';
+            const addMoreBtnContainer = document.getElementById('add-more-row-btn-container');
+
+            if (id) {
+                const r = records.find(item => String(item.id) === String(id));
+                if (r) {
+                    document.getElementById('modal-title').textContent = "編輯明細";
+                    document.getElementById('form-edit-id').value = r.id;
+                    addItemRow(r);
+                    addMoreBtnContainer.classList.add('hidden');
+                }
+            } else {
+                document.getElementById('modal-title').textContent = "新增明細 (可一次新增多筆)";
+                addMoreBtnContainer.classList.remove('hidden');
+                addItemRow();
+            }
+
+            document.getElementById('modal-form').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeModal() {
+            document.getElementById('modal-form').classList.add('hidden');
+        }
+
+        function saveLocalData() {
+            try {
+                localStorage.setItem('demo_records', JSON.stringify(records));
+                localStorage.setItem('bom_records', JSON.stringify(bomList));
+            } catch (err) {
+                throw new Error('瀏覽器本地儲存空間不足。請匯出 JSON 備份，並縮小或移除大型附件。');
+            }
+        }
+
+        function exportBackup() {
+            const backup = {
+                app: '入出庫明細與庫存管理系統',
+                schemaVersion: 1,
+                exportedAt: new Date().toISOString(),
+                records,
+                bomList
+            };
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `入出庫系統備份_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        async function importBackup(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            try {
+                const parsed = JSON.parse(await file.text());
+                if (!parsed || !Array.isArray(parsed.records) || !Array.isArray(parsed.bomList)) {
+                    throw new Error('備份格式不正確，必須包含 records 與 bomList 陣列。');
+                }
+                if (!confirm(`即將還原 ${parsed.records.length} 筆入出庫明細與 ${parsed.bomList.length} 筆 BOM 資料。這會取代目前資料，確定繼續嗎？建議先匯出目前備份。`)) return;
+                const oldRecords = records, oldBom = bomList;
+                records = parsed.records;
+                bomList = parsed.bomList;
+                try { saveLocalData(); }
+                catch (err) { records = oldRecords; bomList = oldBom; throw err; }
+                updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable();
+                alert('備份還原完成！附件資料（若有）也會隨 JSON 備份一併還原。');
+            } catch (err) {
+                alert('還原失敗：' + err.message);
+            } finally { event.target.value = ''; }
+        }
+
+        function clearLocalData() {
+            if (!confirm('確定清除所有入出庫與 BOM 資料？此操作無法復原，請先匯出備份。')) return;
+            records = []; bomList = []; saveLocalData();
+            updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable();
+        }
+
+    </script>
+</body>
+</html>
