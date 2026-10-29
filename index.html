@@ -10,6 +10,10 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- PapaParse for robust CSV parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="./firebase-config.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans antialiased">
 
@@ -22,7 +26,7 @@
                 </div>
                 <div>
                     <h1 class="text-xl font-bold text-slate-900 leading-none">入出庫明細與庫存系統</h1>
-                    <span class="text-xs text-slate-500">Inventory & BOM Reconciliation System · 純本地模式（不使用 Supabase）</span>
+                    <span class="text-xs text-slate-500">Inventory & BOM Reconciliation System</span>
                 </div>
             </div>
             
@@ -30,15 +34,22 @@
                 <!-- 權限模式標籤 -->
                 <span id="role-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 flex items-center space-x-1">
                     <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                    <span>唯讀檢視模式</span>
+                    <span>請先登入</span>
                 </span>
 
                 <!-- 管理員解鎖 / 切換按鈕 -->
                 <button id="btn-admin-toggle" onclick="toggleAdminMode()" class="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
                     <i id="admin-icon" data-lucide="lock" class="w-3.5 h-3.5"></i>
-                    <span id="admin-btn-text">管理員登入</span>
+                    <span id="admin-btn-text">Google 登入</span>
                 </button>
-<!-- 新增明細按鈕 (僅管理員可見) -->
+
+                <button id="btn-export-backup" onclick="exportCloudBackup()" class="owner-only hidden px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium">匯出 JSON 備份</button>
+                <button id="btn-users" onclick="manageUserRole()" class="owner-only hidden px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-xs font-medium">人員權限</button>
+                <label class="owner-only hidden cursor-pointer px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium">
+                    匯入舊資料
+                    <input id="legacy-json-input" type="file" accept=".json,application/json" onchange="importLegacyFile(event)" class="hidden">
+                </label>
+                <!-- 新增明細按鈕 (僅管理員可見) -->
                 <button id="btn-add-record" onclick="openModal()" class="hidden flex items-center space-x-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium text-sm transition shadow-sm hover:shadow">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i>
                     <span>新增明細</span>
@@ -47,15 +58,9 @@
         </div>
     </header>
 
+    <div id="app-message" role="status" class="hidden fixed top-20 right-4 z-50 max-w-lg rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm shadow-lg"></div>
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-                <button type="button" onclick="exportBackup()" class="admin-only hidden px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-medium">
-  匯出 JSON 備份
-                </button>
 
-                <label class="admin-only hidden cursor-pointer px-3 py-2 rounded-lg bg-amber-500 text-white text-xs font-medium">
-  還原 JSON 備份
-                <input type="file" accept=".json,application/json" onchange="importBackup(event)" class="hidden">
-                </label>
         <!-- 數據統計卡片 -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
@@ -142,7 +147,8 @@
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-2 self-end md:self-auto">
+                <div class="flex flex-wrap items-center gap-2 self-end md:self-auto">
+                    <label class="admin-only hidden cursor-pointer px-3 py-2 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium">匯入明細 CSV<input type="file" accept=".csv,text/csv" onchange="handleRecordImport(event)" class="hidden"></label>
                     <button onclick="exportSelectedRecords()" class="px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
                         <span>匯出明細</span>
@@ -403,28 +409,6 @@
         </div>
     </div>
 
-    <!-- PIN 碼解鎖 Modal -->
-    <div id="modal-pin" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm p-6 space-y-4">
-            <div class="flex items-center space-x-3 text-indigo-600">
-                <div class="p-2 bg-indigo-100 rounded-full">
-                    <i data-lucide="shield-check" class="w-6 h-6"></i>
-                </div>
-                <h3 class="font-bold text-slate-800 text-lg">管理員身份驗證</h3>
-            </div>
-            <p class="text-xs text-slate-500">請輸入管理員 PIN 碼以切換編輯權限：</p>
-            <div>
-                <input type="password" id="input-pin-code" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-center tracking-widest text-lg font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                <p id="pin-error-msg" class="text-xs text-rose-600 mt-1 hidden">PIN 碼不正確，請重新輸入</p>
-            </div>
-            <div class="flex justify-end space-x-2 pt-2">
-                <button onclick="closePinModal()" class="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-100">取消</button>
-                <button onclick="verifyPinCode()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">解鎖管理員</button>
-            </div>
-        </div>
-    </div>
-    </div>
-
     <!-- 刪除確認 Modal -->
     <div id="modal-delete" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
@@ -444,8 +428,7 @@
 
     <!-- JS 核心邏輯 -->
     <script>
-        const PIN_CODE = "90440155";
-        // 純本地模式：不連接任何外部資料庫。附件以 Data URL 儲存，並納入 JSON 備份。
+        let currentUser = null;
         let isAdminMode = false;
         let records = [];
         let bomList = [];
@@ -454,92 +437,84 @@
         let deleteTargetId = null;
         let rowCounter = 0;
         let maxProducibleCalculated = 0;
+        let fbAuth, fbDb, stopRecordsListener = null, stopBomListener = null;
 
-        document.addEventListener("DOMContentLoaded", () => {
-            initAdminRole();
-            loadAllData();
-            lucide.createIcons();
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                if (!window.INVENTORY_FIREBASE_CONFIG || !window.INVENTORY_FIREBASE_CONFIG.apiKey || window.INVENTORY_FIREBASE_CONFIG.apiKey.includes('請填')) {
+                    throw new Error('請先設定 public/firebase-config.js 的 Firebase 網頁設定。');
+                }
+                firebase.initializeApp(window.INVENTORY_FIREBASE_CONFIG);
+                fbAuth = firebase.auth(); fbDb = firebase.firestore();
+                fbAuth.onAuthStateChanged(async user => { try {
+                    currentUser = user ? { user: { email: user.email || '', uid: user.uid, role: 'viewer' }, storageMode: 'firebase' } : null;
+                    if (user) {
+                        const userRef = fbDb.collection('users').doc(user.uid);
+                        const userDoc = await userRef.get();
+                        if (!userDoc.exists) await userRef.set({ email: (user.email || '').toLowerCase(), role: 'viewer', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                        const latest = await userRef.get(); currentUser.user.role = latest.exists ? latest.data().role : 'viewer';
+                        isAdminMode = ['admin','editor'].includes(currentUser.user.role);
+                        startRealtimeData();
+                    } else {
+                        isAdminMode = false; records = []; bomList = [];
+                        stopRealtimeData(); renderSignedOut();
+                    }
+                    updateRoleUI(); updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable();
+                    lucide.createIcons();
+                } catch (err) { showError(err); } });
+                lucide.createIcons();
+            } catch (err) { showError(err); }
         });
 
-        function initAdminRole() {
-            // 管理員狀態不跨工作階段保存，避免共用電腦一直保持解鎖。
-            isAdminMode = false;
-            updateRoleUI();
+        function stopRealtimeData() { if (stopRecordsListener) stopRecordsListener(); if (stopBomListener) stopBomListener(); stopRecordsListener = stopBomListener = null; }
+        function startRealtimeData() {
+            stopRealtimeData();
+            stopRecordsListener = fbDb.collection('records').orderBy('date','desc').onSnapshot(s => { records=s.docs.map(d=>{const v=d.data();return {id:d.id,...v,attachment_url:v.attachment_data_url||''};}); updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable(); }, showError);
+            stopBomListener = fbDb.collection('bom').orderBy('project').onSnapshot(s => { bomList=s.docs.map(d=>({id:d.id,...d.data()})); updateBomProjectDropdown(); renderBomTable(); }, showError);
         }
+        function renderSignedOut() { document.getElementById('table-body').innerHTML=''; document.getElementById('stock-table-body').innerHTML=''; document.getElementById('bom-table-body').innerHTML=''; document.getElementById('empty-state').classList.remove('hidden'); }
 
         function updateRoleUI() {
             const badge = document.getElementById('role-badge');
             const adminBtnText = document.getElementById('admin-btn-text');
-            const adminIcon = document.getElementById('admin-icon');
             const btnAdd = document.getElementById('btn-add-record');
             const adminElements = document.querySelectorAll('.admin-only');
+            const ownerElements = document.querySelectorAll('.owner-only');
+            const connectionLabel = currentUser ? 'Firebase 已連線' : 'Google 登入';
+            const adminButton = document.getElementById('btn-admin-toggle');
+            if (adminButton) adminButton.title = currentUser ? '按此登出' : '使用 Google 帳號登入';
+            document.getElementById('admin-icon').setAttribute('data-lucide', currentUser ? 'log-out' : 'log-in');
+            if (!currentUser) { badge.className='px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600'; badge.textContent='尚未登入'; adminBtnText.textContent='Google 登入'; btnAdd.classList.add('hidden'); adminElements.forEach(el=>el.classList.add('hidden')); ownerElements.forEach(el=>el.classList.add('hidden')); lucide.createIcons(); return; }
             if (isAdminMode) {
                 badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 flex items-center space-x-1";
-                badge.innerHTML = `<i data-lucide="shield-check" class="w-3.5 h-3.5"></i><span>管理員模式</span>`;
-                adminBtnText.textContent = "退出管理員";
-                adminIcon.setAttribute('data-lucide', 'unlock');
+                badge.innerHTML = `<i data-lucide="shield-check" class="w-3.5 h-3.5"></i><span>${currentUser.user.role === 'admin' ? '管理員' : '可編輯'} · ${escapeHtml(currentUser.user.email)}</span>`;
+                adminBtnText.textContent = connectionLabel;
                 btnAdd.classList.remove('hidden');
                 adminElements.forEach(el => el.classList.remove('hidden'));
+                ownerElements.forEach(el => el.classList.toggle('hidden', currentUser.user.role !== 'admin'));
             } else {
                 badge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 flex items-center space-x-1";
-                badge.innerHTML = `<i data-lucide="eye" class="w-3.5 h-3.5"></i><span>唯讀檢視模式</span>`;
-                adminBtnText.textContent = "管理員登入";
-                adminIcon.setAttribute('data-lucide', 'lock');
+                badge.innerHTML = `<i data-lucide="eye" class="w-3.5 h-3.5"></i><span>唯讀 · ${escapeHtml(currentUser.user.email)}</span>`;
+                adminBtnText.textContent = connectionLabel;
                 btnAdd.classList.add('hidden');
                 adminElements.forEach(el => el.classList.add('hidden'));
+                ownerElements.forEach(el => el.classList.add('hidden'));
             }
             lucide.createIcons();
         }
 
-        function toggleAdminMode() {
-            if (isAdminMode) {
-                isAdminMode = false;
-                updateRoleUI();
-                renderTable();
-                renderBomTable();
-            } else {
-                document.getElementById('input-pin-code').value = '';
-                document.getElementById('pin-error-msg').classList.add('hidden');
-                document.getElementById('modal-pin').classList.remove('hidden');
-            }
-        }
-
-        function verifyPinCode() {
-            const pin = document.getElementById('input-pin-code').value.trim();
-            if (pin === PIN_CODE) {
-                isAdminMode = true;
-                closePinModal();
-                updateRoleUI();
-                renderTable();
-                renderBomTable();
-            } else {
-                document.getElementById('pin-error-msg').classList.remove('hidden');
-            }
-        }
-
-        function closePinModal() {
-            document.getElementById('modal-pin').classList.add('hidden');
-        }
+        async function toggleAdminMode() { try { if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
 
         async function loadAllData() {
-            await loadRecords();
-            await loadBomData();
+            if (!fbAuth?.currentUser) return;
+            const [recordData, bomData] = await Promise.all([api('/api/records'), api('/api/bom')]);
+            records = recordData.records || []; bomList = bomData.bomList || [];
+            updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable();
         }
 
-        async function loadRecords() {
-            try { records = JSON.parse(localStorage.getItem('demo_records') || '[]'); }
-            catch (_) { records = []; }
-            // 不自動塞入假資料，首次使用保持空白。
-            updateRecordProjectDropdown();
-            applyFilters();
-            renderStockTable();
-        }
+        async function loadRecords() { return api('/api/records'); }
 
-        async function loadBomData() {
-            try { bomList = JSON.parse(localStorage.getItem('bom_records') || '[]'); }
-            catch (_) { bomList = []; }
-            renderBomTable();
-        }
+        async function loadBomData() { return api('/api/bom'); }
 
         function updateRecordProjectDropdown() {
             const select = document.getElementById('filter-record-project');
@@ -582,6 +557,61 @@
                 if (proj === currentSelected) opt.selected = true;
                 select.appendChild(opt);
             });
+        }
+
+        function requireSignedIn(write=false, admin=false) { if(!fbAuth?.currentUser) throw new Error('請先使用 Google 帳號登入。'); if(write&&!['admin','editor'].includes(currentUser?.user?.role)) throw new Error('目前帳號只有檢視權限。'); if(admin&&currentUser?.user?.role!=='admin') throw new Error('此操作僅限管理員。'); }
+        function cleanRecord(x) { const legacyUrl=String(x.attachment_url||''); const r={date:String(x.date||x.movement_date||'').trim(),type:String(x.type||'').toUpperCase(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),quantity:Number(x.quantity),project:String(x.project||'').trim(),remark:String(x.remark||'').trim(),attachment_id:x.attachment_id||null,attachment_name:String(x.attachment_name||''),attachment_data_url:String(x.attachment_data_url||(legacyUrl.startsWith('data:')?legacyUrl:'')),created_by:fbAuth.currentUser.email||'',updated_by:fbAuth.currentUser.email||''}; const parsedDate=new Date(`${r.date}T00:00:00Z`),safeAttachment=!r.attachment_data_url||/^data:(image\/(png|jpeg|gif|webp)|application\/(pdf|octet-stream|vnd\.ms-excel)|text\/(plain|csv)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet);base64,/i.test(r.attachment_data_url); if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==r.date||!['IN','OUT','ADJUSTMENT'].includes(r.type)||!r.item_no||r.item_no.length>100||!r.item_name||r.item_name.length>200||!Number.isFinite(r.quantity)||r.quantity<=0||r.quantity>1e12||r.project.length>100||r.remark.length>2000||r.attachment_data_url.length>950000||r.attachment_name.length>255||!safeAttachment)throw new Error('明細欄位不正確，請檢查日期、類型、料號、品名、正數數量及附件格式。'); return r; }
+        function cleanBom(x) { const b={project:String(x.project||'').trim(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),required_qty:Number(x.required_qty),remark:String(x.remark||'').trim(),updated_by:fbAuth.currentUser.email||''}; if(b.project.length>100||!b.item_no||b.item_no.length>100||!b.item_name||b.item_name.length>200||!Number.isFinite(b.required_qty)||b.required_qty<=0||b.remark.length>2000)throw new Error('BOM 欄位不正確，請檢查專案、料號、品名及正數用量。'); return b; }
+        async function audit(action, type, id, detail={}) { const uid=fbAuth.currentUser.uid; const safe={...detail}; delete safe.attachment_data_url; delete safe.attachment_url; await fbDb.collection('audit_log').add({actor_email:fbAuth.currentUser.email||'',actor_uid:uid,action,entity_type:type,entity_id:String(id),detail:safe,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); }
+        async function api(path, options={}) {
+            requireSignedIn(); const method=(options.method||'GET').toUpperCase(), body=options.body, p=path.split('/').filter(Boolean), key=p[2]?decodeURIComponent(p[2]):''; const role=currentUser?.user?.role;
+            if(p[1]==='me')return currentUser;
+            if(p[1]==='records'){
+                const col=fbDb.collection('records');
+                if(method==='GET') { const s=await col.orderBy('date','desc').limit(20000).get(); return {records:s.docs.map(d=>{const v=d.data();return {id:d.id,...v,attachment_url:v.attachment_data_url||''};})}; }
+                if(method==='POST'){requireSignedIn(true);const rows=Array.isArray(body)?body:[body];if(!rows.length||rows.length>500)throw new Error('每次最多新增 500 筆明細');for(let i=0;i<rows.length;i+=150){const batch=fbDb.batch();for(const raw of rows.slice(i,i+150)){const d=cleanRecord(raw),ref=col.doc(encodeURIComponent(String(raw.id||firebase.firestore().collection('_ids').doc().id)));d.created_at=new Date().toISOString();batch.set(ref,d);batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:new Date().toISOString()},{merge:true});const detail={date:d.date,type:d.type,item_no:d.item_no,item_name:d.item_name,quantity:d.quantity,project:d.project};batch.set(fbDb.collection('audit_log').doc(),{actor_email:d.created_by,actor_uid:fbAuth.currentUser.uid,action:'create',entity_type:'inventory_record',entity_id:ref.id,detail,createdAt:firebase.firestore.FieldValue.serverTimestamp()});}await batch.commit();}return {ok:true}; }
+                const ref=col.doc(key); if(method==='PUT'){requireSignedIn(true);const d=cleanRecord(body);d.updated_at=new Date().toISOString();await ref.set(d,{merge:true});await fbDb.collection('items').doc(encodeURIComponent(d.item_no)).set({item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:d.updated_at},{merge:true});await audit('update','inventory_record',key,d);return {ok:true};} if(method==='DELETE'){requireSignedIn(true);await ref.delete();await audit('delete','inventory_record',key);return {ok:true};}
+            }
+            if(p[1]==='bom'){
+                const col=fbDb.collection('bom'); if(method==='GET'){const s=await col.orderBy('project').limit(20000).get();return {bomList:s.docs.map(d=>({id:d.id,...d.data()}))};}
+                if(method==='POST'){requireSignedIn(true);const rows=Array.isArray(body)?body:[body];if(!rows.length||rows.length>5000)throw new Error('單次最多匯入 5,000 筆 BOM');for(let i=0;i<rows.length;i+=200){const batch=fbDb.batch();for(const raw of rows.slice(i,i+200)){const b=cleanBom(raw);const id=encodeURIComponent(String(raw.id||`${b.project}__${b.item_no}`));const ref=col.doc(id);batch.set(ref,{...b,created_at:new Date().toISOString()},{merge:true});batch.set(fbDb.collection('items').doc(encodeURIComponent(b.item_no)),{item_no:b.item_no,item_name:b.item_name,updated_by:b.updated_by,updated_at:new Date().toISOString()},{merge:true});}await batch.commit();}return {ok:true};}
+                const ref=col.doc(key);if(method==='PUT'){requireSignedIn(true);const b=cleanBom(body);await ref.set({...b,updated_at:new Date().toISOString()},{merge:true});await audit('update','bom_requirement',key,b);return {ok:true};}if(method==='DELETE'){requireSignedIn(true);await ref.delete();await audit('delete','bom_requirement',key);return {ok:true};}
+            }
+            if(p[1]==='users'){
+                requireSignedIn(false,true);if(method==='GET'){const s=await fbDb.collection('users').get();return {users:s.docs.map(d=>({uid:d.id,...d.data()}))};}
+                if(method==='PUT'){const email=key.trim().toLowerCase();const roleValue=String(body?.role||'');if(!email.includes('@')||!['admin','editor','viewer'].includes(roleValue))throw new Error('請輸入有效電子郵件及 admin、editor 或 viewer 權限。');const s=await fbDb.collection('users').where('email','==',email).limit(1).get();if(s.empty)throw new Error('找不到此人員；請先請對方以 Google 帳號登入一次。');await s.docs[0].ref.update({role:roleValue,updated_at:new Date().toISOString()});await audit('set_role','user',s.docs[0].id,{email,role:roleValue});return {ok:true};}
+            }
+            if(p[1]==='legacy-import'&&method==='POST'){requireSignedIn(true,true);const rs=body.records||body.demo_records||[],bs=body.bomList||body.bom_records||[];if(!Array.isArray(rs)||!Array.isArray(bs)||rs.length>5000||bs.length>5000)throw new Error('備份資料格式錯誤或超過每類 5,000 筆限制。');let nr=0,nb=0;for(let i=0;i<rs.length;i+=200){const batch=fbDb.batch();for(const raw of rs.slice(i,i+200)){const d=cleanRecord(raw),id=encodeURIComponent(String(raw.id||firebase.firestore().collection('_ids').doc().id)),ref=fbDb.collection('records').doc(id);const exists=await ref.get();if(!exists.exists){batch.set(ref,{...d,created_at:new Date().toISOString()});batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:new Date().toISOString()},{merge:true});nr++;}}await batch.commit();}for(const raw of bs){const b=cleanBom(raw),id=encodeURIComponent(`${b.project}__${b.item_no}`);await fbDb.collection('bom').doc(id).set({...b,updated_at:new Date().toISOString()},{merge:true});nb++;}return {records:nr,bomList:nb};}
+            if(p[1]==='backup'&&method==='GET'){requireSignedIn(false,true);const [rs,bs]=await Promise.all([fbDb.collection('records').get(),fbDb.collection('bom').get()]);return {app:'入出庫明細管理系統',schemaVersion:1,exportedAt:new Date().toISOString(),records:rs.docs.map(d=>({id:d.id,...d.data()})),bomList:bs.docs.map(d=>({id:d.id,...d.data()}))};}
+            if(p[1]==='attachments'){
+                if(method==='POST'){requireSignedIn(true);const file=body?.get('file');if(!file)throw new Error('請選擇附件');if(file.size>650*1024)throw new Error('為符合 Firestore 免費版單筆資料上限，附件請小於 650 KB。');const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('讀取附件失敗'));reader.readAsDataURL(file);});return {id:crypto.randomUUID(),name:file.name,url:dataUrl,data_url:dataUrl};}
+                if(method==='GET'){const d=await fbDb.collection('records').doc(key).get();if(!d.exists||!d.data().attachment_data_url)throw new Error('找不到附件');return {url:d.data().attachment_data_url};}
+            }
+            throw new Error('找不到 Firebase 資料操作路徑。');
+        }
+        function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+        function showToast(message){const el=document.getElementById('app-message');if(el){el.textContent=message;el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),3500);}}
+        function showError(error){const message=error?.message||String(error);const el=document.getElementById('app-message');if(el){el.textContent=`操作失敗：${message}`;el.classList.remove('hidden');}else alert(`操作失敗：${message}`);}
+        async function manageUserRole(){
+            if(currentUser?.user.role!=='admin'){showError(new Error('僅管理員可以設定人員權限。'));return;}
+            const email=prompt('輸入要授權的人員電子郵件：');if(!email)return;
+            const role=prompt('輸入權限：admin（管理員）、editor（可編輯）、viewer（唯讀）','editor');if(!role)return;
+            try{await api(`/api/users/${encodeURIComponent(email)}`,{method:'PUT',body:{role:role.trim()}});showToast(`已更新 ${email} 的權限。`);}catch(e){showError(e);}
+        }
+        async function exportCloudBackup(){try{const backup=await api('/api/backup');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`庫存雲端備份_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}catch(e){showError(e);}}
+        async function importLegacyFile(event){const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const result=await api('/api/legacy-import',{method:'POST',body:data});await loadAllData();alert(`匯入完成：${result.records} 筆異動、${result.bomList} 筆 BOM。`);}catch(e){showError(e);}finally{event.target.value='';}}
+
+        async function handleRecordImport(event) {
+            const file=event.target.files?.[0]; if(!file)return;
+            Papa.parse(file,{header:true,skipEmptyLines:true,encoding:'UTF-8',complete:async({data,errors})=>{
+                try{
+                    if(errors.length)throw new Error(`CSV 有 ${errors.length} 個格式問題，請檢查欄位及編碼。`);
+                    const rows=data.map(row=>({date:(row['日期']||row['date']||'').trim(),type:(/OUT|出庫/i.test(row['類型']||row['type']||'')?'OUT':'IN'),item_no:(row['料號']||row['item_no']||'').trim(),item_name:(row['品名']||row['item_name']||'').trim(),quantity:Number(row['數量']||row['quantity']),project:(row['專案']||row['project']||'').trim(),remark:(row['備註']||row['remark']||'').trim()})).filter(x=>x.date&&x.item_no&&x.item_name&&Number.isFinite(x.quantity)&&x.quantity>0);
+                    if(!rows.length)throw new Error('CSV 沒有可匯入的有效資料。');
+                    for(let i=0;i<rows.length;i+=200)await api('/api/records',{method:'POST',body:rows.slice(i,i+200)});
+                    await loadAllData();alert(`匯入完成：${rows.length} 筆異動紀錄。`);
+                }catch(err){showError(err);}finally{event.target.value='';}
+            }});
         }
 
         function exportSelectedRecords() {
@@ -691,45 +721,29 @@
 
         async function handleBomFormSubmit(e) {
             e.preventDefault();
-            const btnSave = document.getElementById('btn-save-bom');
-            btnSave.disabled = true;
-            btnSave.textContent = "處理中...";
+            const btn = document.getElementById('btn-save-bom'); btn.disabled = true;
             try {
                 const editId = document.getElementById('bom-edit-id').value;
-                const payload = {
-                    project: document.getElementById('bom-project').value.trim(),
-                    item_no: document.getElementById('bom-item-no').value.trim(),
-                    item_name: document.getElementById('bom-item-name').value.trim(),
-                    required_qty: parseFloat(document.getElementById('bom-required-qty').value) || 0,
-                    remark: document.getElementById('bom-remark').value.trim()
-                };
-                if (editId) {
-                    const idx = bomList.findIndex(b => String(b.id) === String(editId));
-                    if (idx !== -1) bomList[idx] = { ...bomList[idx], ...payload };
-                } else {
-                    bomList.push({ id: 'bom-' + Date.now() + Math.random().toString(36).substring(2, 7), ...payload });
-                }
-                saveLocalData();
-                renderBomTable();
-                closeBomModal();
-            } catch (err) { alert('儲存 BOM 失敗：' + err.message); }
-            finally { btnSave.disabled = false; btnSave.textContent = "儲存 BOM 需求"; }
+                const payload = { project:document.getElementById('bom-project').value.trim(), item_no:document.getElementById('bom-item-no').value.trim(), item_name:document.getElementById('bom-item-name').value.trim(), required_qty:Number(document.getElementById('bom-required-qty').value), remark:document.getElementById('bom-remark').value.trim() };
+                if (editId) await api(`/api/bom/${encodeURIComponent(editId)}`, {method:'PUT',body:payload});
+                else await api('/api/bom', {method:'POST',body:payload});
+                await loadAllData(); closeBomModal(); showToast('BOM 資料已儲存並同步。');
+            } catch(err) { showError(err); }
+            finally { btn.disabled = false; }
         }
 
         async function deleteBomItem(id) {
-            if (!confirm("確定要刪除這筆 BOM 需求嗎？")) return;
-            bomList = bomList.filter(b => String(b.id) !== String(id));
-            saveLocalData(); renderBomTable();
+            if (!confirm('確定要刪除這筆 BOM 需求嗎？')) return;
+            try { await api(`/api/bom/${encodeURIComponent(id)}`, {method:'DELETE'}); await loadAllData(); }
+            catch(err) { showError(err); }
         }
 
         async function deleteSelectedBomItems() {
-            const checkedBoxes = document.querySelectorAll('.bom-checkbox:checked');
-            if (checkedBoxes.length === 0) { alert("請先勾選要刪除的 BOM 項目！"); return; }
-            if (confirm(`確定要刪除選取的 ${checkedBoxes.length} 筆 BOM 需求嗎？`)) {
-                const checkedIds = Array.from(checkedBoxes).map(cb => cb.value);
-                bomList = bomList.filter(b => !checkedIds.includes(String(b.id)));
-                saveLocalData(); renderBomTable();
-            }
+            const boxes = document.querySelectorAll('.bom-checkbox:checked');
+            if (!boxes.length) { alert('請先勾選要刪除的 BOM 項目！'); return; }
+            if (!confirm(`確定要刪除選取的 ${boxes.length} 筆 BOM 需求嗎？`)) return;
+            try { for (const box of boxes) await api(`/api/bom/${encodeURIComponent(box.value)}`, {method:'DELETE'}); await loadAllData(); }
+            catch(err) { showError(err); }
         }
 
         function toggleSelectAllRecords(master) {
@@ -743,57 +757,15 @@
         }
 
         function handleBomImport(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                encoding: "UTF-8",
-                complete: async function(results) {
-                    let addedCount = 0;
-                    let updatedCount = 0;
-                    let totalImportedRows = 0;
-                    let totalRequiredQtySum = 0;
-
-                    for (let row of results.data) {
-                        const project = (row['專案名稱'] || row['專案'] || Object.values(row)[0] || '').trim();
-                        const item_no = (row['料號'] || Object.values(row)[1] || '').trim();
-                        const item_name = (row['品名'] || Object.values(row)[2] || '').trim();
-                        const required_qty = parseFloat(row['單機BOM用量'] || row['BOM需求量'] || row['需求量'] || Object.values(row)[3] || 0) || 0;
-                        const remark = (row['備註'] || Object.values(row)[4] || '').trim();
-
-                        if (!item_no || !item_name) continue;
-
-                        totalImportedRows++;
-                        totalRequiredQtySum += required_qty;
-
-                        const payload = { project, item_no, item_name, required_qty, remark };
-
-                        const existingIdx = bomList.findIndex(b =>
-                            (b.project || '').trim() === project &&
-                            (b.item_no || '').trim() === item_no
-                        );
-                        if (existingIdx !== -1) {
-                            bomList[existingIdx] = { ...bomList[existingIdx], ...payload };
-                            updatedCount++;
-                        } else {
-                            bomList.push({ id: 'bom-' + Date.now() + Math.random().toString(36).substring(2, 7) + totalImportedRows, ...payload });
-                            addedCount++;
-                        }
-                    }
-
-                    saveLocalData();
-                    renderBomTable();
-
-                    alert(`🎉 匯入完成！\n\n• 成功匯入總項目：${totalImportedRows} 筆\n  (新增：${addedCount} 筆 / 更新：${updatedCount} 筆)\n• 單機 BOM 用量總和：${totalRequiredQtySum.toLocaleString()}`);
-                    e.target.value = '';
-                },
-                error: function(err) {
-                    alert("CSV 檔案解析失敗：" + err.message);
-                    e.target.value = '';
-                }
-            });
+            const file = e.target.files && e.target.files[0]; if (!file) return;
+            Papa.parse(file, {header:true,skipEmptyLines:true,encoding:'UTF-8',complete:async ({data,errors})=>{
+                try {
+                    if (errors.length) throw new Error(`CSV 有 ${errors.length} 個格式問題，請檢查檔案。`);
+                    const rows=data.map(row=>({project:(row['專案名稱']||row['專案']||'').trim(),item_no:(row['料號']||'').trim(),item_name:(row['品名']||'').trim(),required_qty:Number(row['單機BOM用量']||row['BOM需求量']||row['需求量']),remark:(row['備註']||'').trim()})).filter(x=>x.item_no&&x.item_name);
+                    if(!rows.length) throw new Error('CSV 沒有可匯入的有效資料。');
+                    await api('/api/bom',{method:'POST',body:rows}); await loadAllData(); alert(`匯入完成：${rows.length} 筆 BOM 資料。`);
+                } catch(err){showError(err);} finally {e.target.value='';}
+            }});
         }
 
         function downloadBomTemplate() {
@@ -851,7 +823,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">日期 *</label>
-                        <input type="date" required value="${data ? data.date : today}" class="item-date w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input type="date" required value="${escapeHtml(data ? data.date : today)}" class="item-date w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">類型 *</label>
@@ -862,21 +834,21 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">料號 *</label>
-                        <input type="text" required value="${data ? data.item_no : ''}" class="item-no w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input type="text" required value="${escapeHtml(data ? data.item_no : '')}" class="item-no w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">數量 *</label>
-                        <input type="number" min="0.01" step="any" required value="${data ? data.quantity : ''}" class="item-qty w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input type="number" min="0.01" step="any" required value="${escapeHtml(data ? data.quantity : '')}" class="item-qty w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">品名 *</label>
-                        <input type="text" required value="${data ? data.item_name : ''}" class="item-name w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input type="text" required value="${escapeHtml(data ? data.item_name : '')}" class="item-name w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">專案</label>
-                        <input type="text" value="${data ? data.project || '' : ''}" class="item-project w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input type="text" value="${escapeHtml(data ? data.project || '' : '')}" class="item-project w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -886,7 +858,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">備註</label>
-                        <input type="text" value="${data ? data.remark || '' : ''}" class="item-remark w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input type="text" value="${escapeHtml(data ? data.remark || '' : '')}" class="item-remark w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
                 </div>
             `;
@@ -910,93 +882,36 @@
         }
 
         async function uploadFile(file) {
-            if (!file) return { url: "", name: "" };
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = e => resolve({ url: e.target.result, name: file.name, size: file.size, type: file.type });
-                reader.onerror = () => reject(new Error('附件讀取失敗'));
-                reader.readAsDataURL(file);
-            });
+            if (!file) return { url:'', name:'', id:null };
+            if (file.size > 650*1024) throw new Error('免費 Firestore 版本的附件上限為 650 KB。');
+            const fd=new FormData(); fd.append('file',file);
+            const result=await api('/api/attachments',{method:'POST',body:fd});
+            return {url:result.url,data_url:result.data_url,name:result.name,id:result.id};
         }
 
         async function handleFormSubmit(e) {
-            e.preventDefault();
-            const btnSave = document.getElementById('btn-save-record');
-            btnSave.disabled = true;
-            btnSave.textContent = "處理中...";
-
-            const editId = document.getElementById('form-edit-id').value;
-            const rows = document.querySelectorAll('#items-container > div');
-            const newPayloads = [];
-
-            for (let row of rows) {
-                const date = row.querySelector('.item-date').value;
-                const type = row.querySelector('.item-type').value;
-                const item_no = row.querySelector('.item-no').value.trim();
-                const item_name = row.querySelector('.item-name').value.trim();
-                const quantity = parseFloat(row.querySelector('.item-qty').value);
-                const project = row.querySelector('.item-project').value.trim();
-                const remark = row.querySelector('.item-remark').value.trim();
-                const fileInput = row.querySelector('.item-file');
-
-                let attachment_url = "";
-                let attachment_name = "";
-
-                if (fileInput && fileInput.files.length > 0) {
-                    const uploaded = await uploadFile(fileInput.files[0]);
-                    attachment_url = uploaded.url;
-                    attachment_name = uploaded.name;
-                } else if (editId) {
-                    const existing = records.find(r => String(r.id) === String(editId));
-                    if (existing) {
-                        attachment_url = existing.attachment_url || "";
-                        attachment_name = existing.attachment_name || "";
-                    }
-                }
-
-                newPayloads.push({
-                    date,
-                    type,
-                    item_no,
-                    item_name,
-                    quantity,
-                    project,
-                    remark,
-                    attachment_url,
-                    attachment_name
-                });
-            }
-
+            e.preventDefault(); const btn=document.getElementById('btn-save-record'); btn.disabled=true;
             try {
-                if (editId) {
-                    const idx = records.findIndex(r => String(r.id) === String(editId));
-                    if (idx !== -1) records[idx] = { ...records[idx], ...newPayloads[0] };
-                } else {
-                    newPayloads.forEach(p => {
-                        p.id = 'local-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
-                        records.unshift(p);
-                    });
+                const editId=document.getElementById('form-edit-id').value;
+                const rows=[...document.querySelectorAll('#items-container > div')];
+                const payloads=[];
+                for(const row of rows){
+                    const old=editId?records.find(r=>String(r.id)===String(editId)):null;
+                    const file=row.querySelector('.item-file').files[0];
+                    const uploaded=file?await uploadFile(file):null;
+                    payloads.push({date:row.querySelector('.item-date').value,type:row.querySelector('.item-type').value,item_no:row.querySelector('.item-no').value.trim(),item_name:row.querySelector('.item-name').value.trim(),quantity:Number(row.querySelector('.item-qty').value),project:row.querySelector('.item-project').value.trim(),remark:row.querySelector('.item-remark').value.trim(),attachment_id:uploaded?.id||old?.attachment_id||null,attachment_name:uploaded?.name||old?.attachment_name||'',attachment_data_url:uploaded?.data_url||old?.attachment_data_url||''});
                 }
-                saveLocalData();
-                updateRecordProjectDropdown();
-                applyFilters(); renderStockTable(); renderBomTable(); closeModal();
-            } catch (err) {
-                alert('儲存失敗：' + err.message + '\n若附件較大，請先匯出備份並減少附件大小。');
-            }
-
-            btnSave.disabled = false;
-            btnSave.textContent = "儲存送出";
+                if(editId) await api(`/api/records/${encodeURIComponent(editId)}`,{method:'PUT',body:payloads[0]});
+                else await api('/api/records',{method:'POST',body:payloads});
+                await loadAllData(); closeModal(); showToast('異動紀錄已儲存並同步。');
+            } catch(err){showError(err);} finally{btn.disabled=false;btn.textContent='儲存送出';}
         }
 
         function confirmDelete(id) {
-            deleteTargetId = id;
-            document.getElementById('modal-delete').classList.remove('hidden');
-            document.getElementById('btn-confirm-delete').onclick = async () => {
-                records = records.filter(r => String(r.id) !== String(deleteTargetId));
-                saveLocalData();
-                updateRecordProjectDropdown();
-                applyFilters(); renderStockTable(); renderBomTable();
-                closeDeleteModal();
+            deleteTargetId=id; document.getElementById('modal-delete').classList.remove('hidden');
+            document.getElementById('btn-confirm-delete').onclick=async()=>{
+                try{await api(`/api/records/${encodeURIComponent(deleteTargetId)}`,{method:'DELETE'});await loadAllData();closeDeleteModal();}
+                catch(err){showError(err);}
             };
         }
 
@@ -1088,19 +1003,19 @@
                     : `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800"><i data-lucide="arrow-up-right" class="w-3 h-3 mr-1"></i> 出庫</span>`;
 
                 const attachmentDisplay = r.attachment_url ? `
-                    <a href="${r.attachment_url}" target="_blank" download="${r.attachment_name || 'attachment'}" class="inline-flex items-center space-x-1 text-xs text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 max-w-[140px] truncate" title="${r.attachment_name || '開啓檔案'}">
+                    <a href="${escapeHtml(r.attachment_url)}" target="_blank" download="${escapeHtml(r.attachment_name || 'attachment')}" class="inline-flex items-center space-x-1 text-xs text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 max-w-[140px] truncate" title="${escapeHtml(r.attachment_name || '開啓檔案')}">
                         <i data-lucide="paperclip" class="w-3 h-3 flex-shrink-0"></i>
-                        <span class="truncate">${r.attachment_name || '檢視檔案'}</span>
+                        <span class="truncate">${escapeHtml(r.attachment_name || '檢視檔案')}</span>
                     </a>
                 ` : `<span class="text-slate-300 text-xs">-</span>`;
 
                 const actionButtons = isAdminMode ? `
                     <td class="p-4 text-center admin-only">
                         <div class="flex items-center justify-center space-x-2">
-                            <button onclick="openModal('${r.id}')" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="編輯">
+                            <button data-record-id="${escapeHtml(r.id)}" onclick="openModal(this.dataset.recordId)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="編輯">
                                 <i data-lucide="pencil" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="confirmDelete('${r.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="刪除">
+                            <button data-record-id="${escapeHtml(r.id)}" onclick="confirmDelete(this.dataset.recordId)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="刪除">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -1109,15 +1024,15 @@
 
                 tr.innerHTML = `
                     <td class="p-4 text-center">
-                        <input type="checkbox" value="${r.id}" class="record-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                        <input type="checkbox" value="${escapeHtml(r.id)}" class="record-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                     </td>
-                    <td class="p-4 font-mono text-xs text-slate-600">${r.date || ''}</td>
+                    <td class="p-4 font-mono text-xs text-slate-600">${escapeHtml(r.date || '')}</td>
                     <td class="p-4">${typeBadge}</td>
-                    <td class="p-4 font-mono font-medium text-slate-800">${r.item_no || ''}</td>
-                    <td class="p-4 font-medium text-slate-900">${r.item_name || ''}</td>
-                    <td class="p-4 text-right font-semibold ${isIN ? 'text-emerald-600' : 'text-rose-600'}">${isIN ? '+' : '-'}${r.quantity}</td>
-                    <td class="p-4 text-slate-600"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${r.project || '無'}</span></td>
-                    <td class="p-4 text-slate-500 max-w-xs truncate" title="${r.remark || ''}">${r.remark || '-'}</td>
+                    <td class="p-4 font-mono font-medium text-slate-800">${escapeHtml(r.item_no || '')}</td>
+                    <td class="p-4 font-medium text-slate-900">${escapeHtml(r.item_name || '')}</td>
+                    <td class="p-4 text-right font-semibold ${isIN ? 'text-emerald-600' : 'text-rose-600'}">${isIN ? '+' : '-'}${Number(r.quantity) || 0}</td>
+                    <td class="p-4 text-slate-600"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${escapeHtml(r.project || '無')}</span></td>
+                    <td class="p-4 text-slate-500 max-w-xs truncate" title="${escapeHtml(r.remark || '')}">${escapeHtml(r.remark || '-')}</td>
                     <td class="p-4">${attachmentDisplay}</td>
                     ${actionButtons}
                 `;
@@ -1168,8 +1083,8 @@
                 }
 
                 tr.innerHTML = `
-                    <td class="p-4 font-mono font-medium text-slate-800">${item.item_no}</td>
-                    <td class="p-4 font-medium text-slate-900">${item.item_name}</td>
+                    <td class="p-4 font-mono font-medium text-slate-800">${escapeHtml(item.item_no)}</td>
+                    <td class="p-4 font-medium text-slate-900">${escapeHtml(item.item_name)}</td>
                     <td class="p-4 text-right text-emerald-600 font-medium">+${item.in_qty.toLocaleString()}</td>
                     <td class="p-4 text-right text-rose-600 font-medium">-${item.out_qty.toLocaleString()}</td>
                     <td class="p-4 text-right font-bold text-slate-900 ${currentStock < 0 ? 'text-rose-600' : ''}">${currentStock.toLocaleString()}</td>
@@ -1274,10 +1189,10 @@
                 const actionButtons = isAdminMode ? `
                     <td class="p-4 text-center admin-only">
                         <div class="flex items-center justify-center space-x-2">
-                            <button onclick="openBomModal('${item.id}')" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="編輯">
+                            <button data-bom-id="${escapeHtml(item.id)}" onclick="openBomModal(this.dataset.bomId)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="編輯">
                                 <i data-lucide="pencil" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="deleteBomItem('${item.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="刪除">
+                            <button data-bom-id="${escapeHtml(item.id)}" onclick="deleteBomItem(this.dataset.bomId)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="刪除">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -1286,17 +1201,17 @@
 
                 tr.innerHTML = `
                     <td class="p-4 text-center">
-                        <input type="checkbox" value="${item.id}" class="bom-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                        <input type="checkbox" value="${escapeHtml(item.id)}" class="bom-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                     </td>
-                    <td class="p-4 font-medium text-slate-800"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${item.project || '通用'}</span></td>
-                    <td class="p-4 font-mono font-medium text-slate-800">${item.item_no}</td>
-                    <td class="p-4 font-medium text-slate-900">${item.item_name}</td>
-                    <td class="p-4 text-right font-semibold text-slate-600">${item.required_qty.toLocaleString()}</td>
+                    <td class="p-4 font-medium text-slate-800"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${escapeHtml(item.project || '通用')}</span></td>
+                    <td class="p-4 font-mono font-medium text-slate-800">${escapeHtml(item.item_no)}</td>
+                    <td class="p-4 font-medium text-slate-900">${escapeHtml(item.item_name)}</td>
+                    <td class="p-4 text-right font-semibold text-slate-600">${Number(item.required_qty).toLocaleString()}</td>
                     <td class="p-4 text-right font-bold text-indigo-700 bg-indigo-50/30">${totalTargetDemand.toLocaleString()}</td>
                     <td class="p-4 text-right font-semibold text-emerald-600">+${inQty.toLocaleString()}</td>
                     <td class="p-4 text-right font-bold ${shortage > 0 ? 'text-rose-600' : 'text-slate-400'}">${shortage > 0 ? shortage.toLocaleString() : 0}</td>
                     <td class="p-4 text-center">${statusBadge}</td>
-                    <td class="p-4 text-slate-500 max-w-xs truncate" title="${item.remark || ''}">${item.remark || '-'}</td>
+                    <td class="p-4 text-slate-500 max-w-xs truncate" title="${escapeHtml(item.remark || '')}">${escapeHtml(item.remark || '-')}</td>
                     ${actionButtons}
                 `;
                 tbody.appendChild(tr);
@@ -1355,60 +1270,6 @@
         function closeModal() {
             document.getElementById('modal-form').classList.add('hidden');
         }
-
-        function saveLocalData() {
-            try {
-                localStorage.setItem('demo_records', JSON.stringify(records));
-                localStorage.setItem('bom_records', JSON.stringify(bomList));
-            } catch (err) {
-                throw new Error('瀏覽器本地儲存空間不足。請匯出 JSON 備份，並縮小或移除大型附件。');
-            }
-        }
-
-        function exportBackup() {
-            const backup = {
-                app: '入出庫明細與庫存管理系統',
-                schemaVersion: 1,
-                exportedAt: new Date().toISOString(),
-                records,
-                bomList
-            };
-            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `入出庫系統備份_${new Date().toISOString().slice(0,10)}.json`;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-        }
-
-        async function importBackup(event) {
-            const file = event.target.files && event.target.files[0];
-            if (!file) return;
-            try {
-                const parsed = JSON.parse(await file.text());
-                if (!parsed || !Array.isArray(parsed.records) || !Array.isArray(parsed.bomList)) {
-                    throw new Error('備份格式不正確，必須包含 records 與 bomList 陣列。');
-                }
-                if (!confirm(`即將還原 ${parsed.records.length} 筆入出庫明細與 ${parsed.bomList.length} 筆 BOM 資料。這會取代目前資料，確定繼續嗎？建議先匯出目前備份。`)) return;
-                const oldRecords = records, oldBom = bomList;
-                records = parsed.records;
-                bomList = parsed.bomList;
-                try { saveLocalData(); }
-                catch (err) { records = oldRecords; bomList = oldBom; throw err; }
-                updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable();
-                alert('備份還原完成！附件資料（若有）也會隨 JSON 備份一併還原。');
-            } catch (err) {
-                alert('還原失敗：' + err.message);
-            } finally { event.target.value = ''; }
-        }
-
-        function clearLocalData() {
-            if (!confirm('確定清除所有入出庫與 BOM 資料？此操作無法復原，請先匯出備份。')) return;
-            records = []; bomList = []; saveLocalData();
-            updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable();
-        }
-
     </script>
 </body>
 </html>
