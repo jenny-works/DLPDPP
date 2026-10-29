@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ㄇ<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -397,7 +397,7 @@
                 <div id="add-more-row-btn-container" class="pt-2">
                     <button type="button" onclick="addItemRow()" class="w-full py-2 border-2 border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg text-sm font-semibold flex items-center justify-center space-x-1 transition">
                         <i data-lucide="plus" class="w-4 h-4"></i>
-                        <span>新增一列項目</span>
+                        <span>+ 新增一列項目</span>
                     </button>
                 </div>
 
@@ -449,6 +449,7 @@
                 }
                 firebase.initializeApp(window.INVENTORY_FIREBASE_CONFIG);
                 fbAuth = firebase.auth(); fbDb = firebase.firestore();
+                fbAuth.getRedirectResult().catch(showError);
                 fbAuth.onAuthStateChanged(async user => { try {
                     currentUser = user ? { user: { email: user.email || '', uid: user.uid, role: 'viewer' }, storageMode: 'firebase' } : null;
                     if (user) {
@@ -506,7 +507,7 @@
             lucide.createIcons();
         }
 
-        async function toggleAdminMode() { try { if (!fbAuth) throw new Error('Firebase Auth 尚未初始化。請確認 firebase-config.js 與 index.html 在同一資料夾、設定值已填妥，並透過 GitHub Pages 或 localhost 開啟。'); if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
+        async function toggleAdminMode() { try { if (!fbAuth) throw new Error('Firebase Auth 尚未初始化。請確認 firebase-config.js 與 index.html 在同一資料夾、設定值已填妥，並透過 GitHub Pages 或 localhost 開啟。'); if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
 
         async function loadAllData() {
             if (!fbAuth?.currentUser) return;
@@ -1202,9 +1203,11 @@
                 tr.className = "hover:bg-slate-50 transition-colors";
 
                 let statusBadge = shortage <= 0 
-                    ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">齊料</span>`
+                    ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">齊料 (已到位)</span>`
                     : `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">缺數中 (${shortage})</span>`;
 
+                if (isBottleneck && shortage > 0) {
+                    statusBadge += `<span class="ml-1 px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-800 font-semibold">生產瓶頸</span>`;
                 }
 
                 const actionButtons = isAdminMode ? `
