@@ -214,7 +214,6 @@
                     <select id="filter-type" onchange="applyFilters()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
                         <option value="ALL">全部類型</option>
                         <option value="IN">入庫</option>
-                        <option value="OUT">出庫</option>
                         <option value="ISSUE">領料</option>
                         <option value="SUPPLIER_RETURN">退回供應商</option>
                     </select>
@@ -1107,7 +1106,7 @@
         }
 
         function downloadRecordTemplate() {
-            downloadCSV('日期,專案,異動類型,料號,品名,數量,對象,單號,備註\n', '領料與出庫匯入範本.csv');
+            downloadCSV('日期,專案,異動類型,料號,品名,數量,對象,單號,備註\n', '領料與退回供應商匯入範本.csv');
         }
 
         async function handleRecordImport(event) {
@@ -1472,9 +1471,9 @@
                         <label class="block text-xs font-semibold text-slate-700 mb-1">類型 *</label>
                         <select required class="item-type w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                             <option value="IN" ${data && data.type === 'IN' ? 'selected' : ''}>入庫</option>
-                            <option value="OUT" ${data && data.type === 'OUT' ? 'selected' : ''}>出庫</option>
-                            <option value="ISSUE" ${data && data.type === 'ISSUE' ? 'selected' : ''}>領料（扣庫存）</option>
-                            <option value="SUPPLIER_RETURN" ${data && data.type === 'SUPPLIER_RETURN' ? 'selected' : ''}>退回供應商（扣庫存）</option>
+                            ${data && data.type === 'OUT' ? '<option value="OUT" selected>既有出庫紀錄</option>' : ''}
+                            <option value="ISSUE" ${data && data.type === 'ISSUE' ? 'selected' : ''}>領料</option>
+                            <option value="SUPPLIER_RETURN" ${data && data.type === 'SUPPLIER_RETURN' ? 'selected' : ''}>退回供應商</option>
                         </select>
                     </div>
                     <div>
