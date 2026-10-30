@@ -117,7 +117,6 @@
                             <i data-lucide="search" class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
                             <input id="filter-home-project" type="search" oninput="renderProjectOverview()" placeholder="搜尋專案名稱" class="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
                         </label>
-                        <button id="btn-set-inbound-counterparty" onclick="setInboundCounterpartyKerui()" class="owner-only hidden rounded-lg border border-indigo-300 px-3 py-2 text-xs font-medium text-indigo-700">入庫對象統一設為科瑞</button>
                         <button id="btn-build-summary-home" onclick="buildInventorySummary()" class="owner-only hidden rounded-lg bg-amber-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-amber-700" title="初始化既有資料摘要，只需執行一次">建立統計索引</button>
                     </div>
                 </div>
@@ -986,30 +985,6 @@
                 project: v.project, record_count: inc(v.record_count), in_qty: inc(v.in_qty), out_qty: inc(v.out_qty),
                 updated_at: new Date().toISOString()
             }, { merge: true }));
-        }
-
-        async function setInboundCounterpartyKerui() {
-            const button = document.getElementById('btn-set-inbound-counterparty');
-            button.disabled = true;
-            let completed = 0;
-            try {
-                requireSignedIn(false, true);
-                const docs = await getAllQueryDocs(fbDb.collection('records').where('type', '==', 'IN'), 400);
-                const targets = docs.filter(doc => doc.data().counterparty !== '科瑞');
-                if (!targets.length) { showToast('所有入庫明細的對象已是科瑞，無需更新。'); return; }
-                if (!confirm(`將跨所有專案更新 ${targets.length} 筆入庫明細的對象為「科瑞」，包含目前已有其他對象的紀錄。是否繼續？`)) return;
-                for (let offset = 0; offset < targets.length; offset += 400) {
-                    const batch = fbDb.batch();
-                    const chunk = targets.slice(offset, offset + 400);
-                    for (const doc of chunk) batch.update(doc.ref, {counterparty:'科瑞', updated_by:fbAuth.currentUser.email || '', updated_at:new Date().toISOString()});
-                    await batch.commit(); completed += chunk.length;
-                    button.textContent = `已更新 ${completed}/${targets.length} 筆`;
-                }
-                recordSearchRecords = null; recordSearchCacheProject = '';
-                await audit('set_inbound_counterparty','inventory_record','all_inbound',{counterparty:'科瑞',count:completed});
-                showToast(`已將 ${completed} 筆入庫明細的對象更新為科瑞。`);
-            } catch(error) { showError(new Error(`已更新 ${completed} 筆。${error.message || error}。若未全部完成，可再執行，系統會略過已更新資料。`)); }
-            finally { button.disabled = false; button.textContent = '入庫對象統一設為科瑞'; }
         }
 
         async function buildInventorySummary() {
@@ -1990,7 +1965,25 @@
                 dispatchCursor = snapshot.docs[snapshot.docs.length-1] || null;
                 document.getElementById('dispatch-next').classList.toggle('hidden',snapshot.size < 50);
                 renderDispatchDocuments();
-            } catch(error) { if(request===dispatchRequest) status.textContent='載入失敗：'+error.message; }
+            } catch(error) {
+                if (request === dispatchRequest) {
+                    const message = String(error.message || '');
+                    if (message.includes('requires an index')) {
+                        status.textContent = '單據查詢尚未完成設定，請管理員建立索引；建立完成後按「重新整理」。';
+                        const match = message.match(/https:\/\/console\.firebase\.google\.com\/[^\s]+/);
+                        if (match && currentUser?.user?.role === 'admin') {
+                            const link = document.createElement('a');
+                            link.href = match[0]; link.target = '_blank'; link.rel = 'noopener noreferrer';
+                            link.textContent = '建立索引'; link.className = 'ml-3 inline-block rounded-lg border border-indigo-300 px-3 py-2 text-indigo-700';
+                            status.appendChild(link);
+                        }
+                    } else if (error.code === 'permission-denied') {
+                        status.textContent = '目前無法讀取單據，請確認帳號權限與最新 Firebase 規則已發布。';
+                    } else {
+                        status.textContent = '單據暫時無法載入，請稍後按「重新整理」。';
+                    }
+                }
+            }
             finally { if(request===dispatchRequest) dispatchLoading=false; }
         }
         function renderDispatchDocuments() {
