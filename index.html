@@ -43,8 +43,8 @@
                     <span id="admin-btn-text">Google 登入</span>
                 </button>
 
+                <div id="workspace-header-actions" class="hidden flex items-center space-x-3">
                 <button id="btn-export-backup" onclick="exportCloudBackup()" class="owner-only hidden px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium">匯出 JSON 備份</button>
-                <button id="btn-build-summary" onclick="buildInventorySummary()" class="owner-only hidden px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium" title="第一次啟用分頁時，讀取既有紀錄並建立統計索引">建立統計索引</button>
                 <button id="btn-users" onclick="manageUserRole()" class="owner-only hidden px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-xs font-medium">人員權限</button>
                 <label class="owner-only hidden cursor-pointer px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium">
                     匯入舊資料
@@ -55,6 +55,7 @@
                     <i data-lucide="plus-circle" class="w-4 h-4"></i>
                     <span>新增明細</span>
                 </button>
+                </div>
             </div>
         </div>
     </header>
@@ -63,18 +64,29 @@
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
         <!-- 首頁專案總覽 -->
-        <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <section id="project-home" class="hidden bg-white rounded-xl border border-slate-200 shadow-sm p-5">
             <div class="flex items-center justify-between gap-3 mb-4">
                 <div>
                     <h2 class="text-base font-bold text-slate-800">專案總覽</h2>
                     <p class="text-xs text-slate-500 mt-1">選擇專案可直接查看該專案明細</p>
                 </div>
-                <span id="project-overview-count" class="text-xs text-slate-500"></span>
+                <div class="flex items-center gap-3">
+                    <span id="project-overview-count" class="text-xs text-slate-500"></span>
+                    <button id="btn-build-summary-home" onclick="buildInventorySummary()" class="owner-only hidden px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium" title="初始化現有資料摘要，只需執行一次">建立統計索引</button>
+                </div>
             </div>
             <div id="project-overview" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <p class="text-sm text-slate-400">登入後載入專案…</p>
             </div>
         </section>
+
+        <section id="workspace-view" class="hidden space-y-6">
+            <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <button onclick="showProjectHome()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">← 專案首頁</button>
+                    <h2 id="active-project-title" class="text-base font-bold text-slate-800"></h2>
+                </div>
+            </div>
 
         <!-- 數據統計卡片 -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -362,6 +374,7 @@
                 </div>
             </div>
         </div>
+        </section>
 
     </main>
 
@@ -466,6 +479,7 @@
         let maxProducibleCalculated = 0;
         const RECORDS_PAGE_SIZE = 50;
         let recordPageNumber = 1, recordPageCursors = [null], recordHasNext = false, recordPageLastDoc = null;
+        let activeProject = '';
         let fbAuth, fbDb, stopRecordsListener = null, stopBomListener = null, stopInventorySummaryListener = null, stopProjectSummaryListener = null, stopSummaryMetaListener = null;
 
         document.addEventListener("DOMContentLoaded", async () => {
@@ -499,23 +513,32 @@
         });
 
         function stopRealtimeData() {
-            [stopRecordsListener, stopBomListener, stopInventorySummaryListener, stopProjectSummaryListener, stopSummaryMetaListener].forEach(stop => { if (stop) stop(); });
-            stopRecordsListener = stopBomListener = stopInventorySummaryListener = stopProjectSummaryListener = stopSummaryMetaListener = null;
+            stopProjectDataListeners();
+            if (stopSummaryMetaListener) stopSummaryMetaListener();
+            stopSummaryMetaListener = null;
+        }
+        function stopProjectDataListeners() {
+            [stopRecordsListener, stopBomListener, stopInventorySummaryListener, stopProjectSummaryListener].forEach(stop => { if (stop) stop(); });
+            stopRecordsListener = stopBomListener = stopInventorySummaryListener = stopProjectSummaryListener = null;
         }
         function startRealtimeData() {
             stopRealtimeData();
-            stopBomListener = fbDb.collection('bom').orderBy('project').onSnapshot(s => { bomList=s.docs.map(d=>({id:d.id,...d.data()})); updateBomProjectDropdown(); renderBomTable(); renderProjectOverview(); }, showError);
-            stopInventorySummaryListener = fbDb.collection('inventory_summary').onSnapshot(s => { inventorySummaries=s.docs.map(d=>({id:d.id,...d.data()})); renderStockTable(); renderBomTable(); }, showError);
-            stopProjectSummaryListener = fbDb.collection('project_summaries').onSnapshot(s => { projectSummaries=s.docs.map(d=>({id:d.id,...d.data()})); updateRecordProjectDropdown(); renderStats(); renderProjectOverview(); }, showError);
+            activeProject = '';
+            document.getElementById('workspace-view').classList.add('hidden');
+            document.getElementById('project-home').classList.remove('hidden');
+            document.getElementById('workspace-header-actions').classList.add('hidden');
+            fbDb.collection('project_summaries').get().then(s => {
+                projectSummaries = s.docs.map(d=>({id:d.id,...d.data()}));
+                renderProjectOverview();
+            }).catch(showError);
             stopSummaryMetaListener = fbDb.collection('app_meta').doc('inventory_summary_v1').onSnapshot(s => {
                 summaryReady = !!(s.exists && s.data().ready === true);
-                document.getElementById('btn-build-summary')?.classList.toggle('hidden', summaryReady || currentUser?.user.role !== 'admin');
+                document.getElementById('btn-build-summary-home')?.classList.toggle('hidden', summaryReady || currentUser?.user.role !== 'admin');
                 if (!summaryReady) showSummaryNotice();
                 else document.getElementById('summary-notice')?.classList.add('hidden');
             }, showError);
-            loadRecordPage(true);
         }
-        function renderSignedOut() { document.getElementById('table-body').innerHTML=''; document.getElementById('stock-table-body').innerHTML=''; document.getElementById('bom-table-body').innerHTML=''; document.getElementById('empty-state').classList.remove('hidden'); }
+        function renderSignedOut() { document.getElementById('project-home').classList.add('hidden'); document.getElementById('workspace-view').classList.add('hidden'); document.getElementById('workspace-header-actions').classList.add('hidden'); document.getElementById('summary-notice')?.classList.add('hidden'); document.getElementById('table-body').innerHTML=''; document.getElementById('stock-table-body').innerHTML=''; document.getElementById('bom-table-body').innerHTML=''; document.getElementById('empty-state').classList.remove('hidden'); }
 
         function showSummaryNotice() {
             let notice = document.getElementById('summary-notice');
@@ -529,14 +552,14 @@
         }
 
         function buildRecordPageQuery() {
-            const project = document.getElementById('filter-record-project').value;
+            const project = activeProject || document.getElementById('filter-record-project').value;
             let query = fbDb.collection('records');
             if (project !== 'ALL') query = query.where('project', '==', project);
             return query.orderBy('date', 'desc');
         }
 
         function loadRecordPage(reset = false) {
-            if (!fbAuth?.currentUser) return;
+            if (!fbAuth?.currentUser || !activeProject) return;
             if (reset) { recordPageNumber = 1; recordPageCursors = [null]; }
             if (stopRecordsListener) stopRecordsListener();
             let query = buildRecordPageQuery();
@@ -608,7 +631,11 @@
             const select = document.getElementById('filter-record-project');
             if (!select) return;
             const currentSelected = select.value;
-            
+            if (activeProject) {
+                select.innerHTML = `<option value="${escapeHtml(activeProject)}">${escapeHtml(activeProject)}</option>`;
+                select.value = activeProject;
+                return;
+            }
             const projects = new Set();
             projectSummaries.forEach(p => { if (p.project && p.project.trim()) projects.add(p.project.trim()); });
             records.forEach(r => { if (r.project && r.project.trim()) projects.add(r.project.trim()); });
@@ -651,13 +678,61 @@
         }
 
         function openProjectOverview(project) {
+            activeProject = String(project || '').trim();
+            if (!activeProject) return;
             const recordSelect = document.getElementById('filter-record-project');
             const bomSelect = document.getElementById('filter-bom-project');
-            recordSelect.value = project;
-            bomSelect.value = project;
+            recordSelect.value = activeProject;
+            bomSelect.value = activeProject;
+            document.getElementById('active-project-title').textContent = `專案：${activeProject}`;
+            document.getElementById('project-home').classList.add('hidden');
+            document.getElementById('workspace-view').classList.remove('hidden');
+            document.getElementById('workspace-header-actions').classList.remove('hidden');
+            loadProjectData();
             loadRecordPage(true);
-            renderBomTable();
             switchTab('records');
+        }
+
+        function loadProjectData() {
+            stopProjectDataListeners();
+            records = []; bomList = []; inventorySummaries = [];
+            updateRecordProjectDropdown(); updateBomProjectDropdown();
+            applyFilters(); renderStockTable(); renderBomTable();
+            stopProjectSummaryListener = fbDb.collection('project_summaries').doc(projectSummaryId(activeProject)).onSnapshot(s => {
+                projectSummaries = projectSummaries.filter(p => p.project !== activeProject);
+                if (s.exists) projectSummaries.push({ id: s.id, ...s.data() });
+                renderStats();
+            }, showError);
+        }
+
+        function ensureInventorySummaryListener() {
+            if (!activeProject || stopInventorySummaryListener) return;
+            stopInventorySummaryListener = fbDb.collection('inventory_summary').where('project', '==', activeProject).onSnapshot(s => {
+                inventorySummaries = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderStockTable(); renderBomTable();
+            }, showError);
+        }
+
+        function ensureBomListener() {
+            if (!activeProject || stopBomListener) return;
+            stopBomListener = fbDb.collection('bom').where('project', '==', activeProject).onSnapshot(s => {
+                bomList = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                updateBomProjectDropdown(); renderBomTable();
+            }, showError);
+        }
+
+        function showProjectHome() {
+            if (!fbAuth?.currentUser) return;
+            stopProjectDataListeners();
+            activeProject = '';
+            records = []; bomList = []; inventorySummaries = [];
+            document.getElementById('workspace-view').classList.add('hidden');
+            document.getElementById('project-home').classList.remove('hidden');
+            document.getElementById('workspace-header-actions').classList.add('hidden');
+            fbDb.collection('project_summaries').get().then(s => {
+                projectSummaries = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderProjectOverview();
+            }).catch(showError);
         }
 
         function stableDocId(value) {
@@ -710,7 +785,7 @@
         async function buildInventorySummary() {
             requireSignedIn(false, true);
             if (!confirm('首次建立統計索引會讀取全部既有明細一次，並建立專案／料號摘要；不會更動或刪除明細。是否繼續？')) return;
-            const button = document.getElementById('btn-build-summary');
+            const button = document.getElementById('btn-build-summary-home');
             button.disabled = true; button.textContent = '建立中…';
             try {
                 const metaRef = fbDb.collection('app_meta').doc('inventory_summary_v1');
@@ -718,6 +793,12 @@
                 const docs = await getAllQueryDocs(fbDb.collection('records').orderBy('date', 'desc'), 500);
                 const inventory = new Map(), projects = new Map();
                 docs.forEach(doc => addRecordSummaryDelta({ inventory, projects }, doc.data(), 1));
+                const bomDocs = await fbDb.collection('bom').get();
+                bomDocs.docs.forEach(doc => {
+                    const project = String(doc.data().project || '').trim();
+                    const id = projectSummaryId(project);
+                    if (project && !projects.has(id)) projects.set(id, { id, project, record_count: 0, in_qty: 0, out_qty: 0 });
+                });
                 const oldInventory = await fbDb.collection('inventory_summary').get();
                 const oldProjects = await fbDb.collection('project_summaries').get();
                 const writes = [];
@@ -731,6 +812,9 @@
                     await batch.commit();
                 }
                 await metaRef.set({ ready: true, record_count: docs.length, updated_at: new Date().toISOString() }, { merge: true });
+                const projectSnapshot = await fbDb.collection('project_summaries').get();
+                projectSummaries = projectSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                renderProjectOverview();
                 showToast(`統計索引建立完成：讀取 ${docs.length} 筆既有明細。`);
             } catch (err) { showError(err); }
             finally { button.disabled = false; button.textContent = '建立統計索引'; }
@@ -739,6 +823,11 @@
         function updateBomProjectDropdown() {
             const select = document.getElementById('filter-bom-project');
             const currentSelected = select.value;
+            if (activeProject) {
+                select.innerHTML = `<option value="${escapeHtml(activeProject)}">${escapeHtml(activeProject)}</option>`;
+                select.value = activeProject;
+                return;
+            }
             
             const projects = new Set();
             bomList.forEach(item => {
@@ -774,8 +863,8 @@
             }
             if(p[1]==='bom'){
                 const col=fbDb.collection('bom'); if(method==='GET'){const docs=await getAllQueryDocs(col.orderBy('project'));return {bomList:docs.map(d=>({id:d.id,...d.data()}))};}
-                if(method==='POST'){requireSignedIn(true);const rows=Array.isArray(body)?body:[body];if(!rows.length||rows.length>5000)throw new Error('單次最多匯入 5,000 筆 BOM');for(let i=0;i<rows.length;i+=200){const batch=fbDb.batch();for(const raw of rows.slice(i,i+200)){const b=cleanBom(raw);const id=encodeURIComponent(String(raw.id||`${b.project}__${b.item_no}`));const ref=col.doc(id);batch.set(ref,{...b,created_at:new Date().toISOString()},{merge:true});batch.set(fbDb.collection('items').doc(encodeURIComponent(b.item_no)),{item_no:b.item_no,item_name:b.item_name,updated_by:b.updated_by,updated_at:new Date().toISOString()},{merge:true});}await batch.commit();}return {ok:true};}
-                const ref=col.doc(key);if(method==='PUT'){requireSignedIn(true);const b=cleanBom(body);await ref.set({...b,updated_at:new Date().toISOString()},{merge:true});await audit('update','bom_requirement',key,b);return {ok:true};}if(method==='DELETE'){requireSignedIn(true);await ref.delete();await audit('delete','bom_requirement',key);return {ok:true};}
+                if(method==='POST'){requireSignedIn(true);const rows=Array.isArray(body)?body:[body];if(!rows.length||rows.length>5000)throw new Error('單次最多匯入 5,000 筆 BOM');for(let i=0;i<rows.length;i+=150){const batch=fbDb.batch(),projects=new Set();for(const raw of rows.slice(i,i+150)){const b=cleanBom(raw);const id=encodeURIComponent(String(raw.id||`${b.project}__${b.item_no}`));const ref=col.doc(id);batch.set(ref,{...b,created_at:new Date().toISOString()},{merge:true});batch.set(fbDb.collection('items').doc(encodeURIComponent(b.item_no)),{item_no:b.item_no,item_name:b.item_name,updated_by:b.updated_by,updated_at:new Date().toISOString()},{merge:true});if(b.project)projects.add(b.project);}projects.forEach(project=>batch.set(fbDb.collection('project_summaries').doc(projectSummaryId(project)),{project},{merge:true}));await batch.commit();}return {ok:true};}
+                const ref=col.doc(key);if(method==='PUT'){requireSignedIn(true);const b=cleanBom(body);await ref.set({...b,updated_at:new Date().toISOString()},{merge:true});if(b.project)await fbDb.collection('project_summaries').doc(projectSummaryId(b.project)).set({project:b.project},{merge:true});await audit('update','bom_requirement',key,b);return {ok:true};}if(method==='DELETE'){requireSignedIn(true);await ref.delete();await audit('delete','bom_requirement',key);return {ok:true};}
             }
             if(p[1]==='users'){
                 requireSignedIn(false,true);if(method==='GET'){const s=await fbDb.collection('users').get();return {users:s.docs.map(d=>({uid:d.id,...d.data()}))};}
@@ -1033,6 +1122,7 @@
                     });
                     await batch.commit();
                 }
+                await fbDb.collection('project_summaries').doc(projectSummaryId(project)).set({ project }, { merge: true });
                 showToast(`已將 ${changed.length} 筆 BOM 移至「${project}」。`);
             } catch (err) { showError(err); }
         }
@@ -1099,6 +1189,8 @@
                 }
             });
 
+            if (tab === 'stock' || tab === 'bom') ensureInventorySummaryListener();
+            if (tab === 'bom') ensureBomListener();
             if (tab === 'stock') renderStockTable();
             if (tab === 'bom') renderBomTable();
         }
@@ -1274,7 +1366,7 @@
 
         function resetFilters() {
             document.getElementById('filter-search').value = '';
-            document.getElementById('filter-record-project').value = 'ALL';
+            document.getElementById('filter-record-project').value = activeProject || 'ALL';
             document.getElementById('filter-type').value = 'ALL';
             document.getElementById('filter-date-start').value = '';
             document.getElementById('filter-date-end').value = '';
