@@ -204,7 +204,7 @@
                 <div class="flex flex-1 flex-col sm:flex-row items-center gap-3">
                     <div class="relative w-full sm:flex-[1.5] sm:min-w-[16rem] lg:min-w-[20rem]">
                         <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="filter-search" oninput="applyFilters()" placeholder="搜尋料號、品名、專案或備註..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input type="text" id="filter-search" oninput="handleRecordSearch()" placeholder="搜尋料號、品名、專案或備註..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
 
                     <select id="filter-record-project" onchange="loadRecordPage(true)" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
@@ -277,7 +277,7 @@
                     <p class="text-base font-medium text-slate-600">目前沒有找到符合條件的明細</p>
                 </div>
                 <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
-                    <span><span id="record-page-info">每頁 50 筆</span><span class="ml-3 text-xs text-slate-400">搜尋、日期及類型篩選套用於目前頁面</span></span>
+                    <span><span id="record-page-info">每頁 50 筆</span><span class="ml-3 text-xs text-slate-400">搜尋會查詢所選專案全部明細；日期及類型可再篩選</span></span>
                     <div class="flex items-center gap-2">
                         <button id="record-prev-page" onclick="changeRecordPage(-1)" class="px-3 py-1.5 rounded border border-slate-300 disabled:opacity-40" disabled>上一頁</button>
                         <button id="record-next-page" onclick="changeRecordPage(1)" class="px-3 py-1.5 rounded border border-slate-300 disabled:opacity-40" disabled>下一頁</button>
@@ -529,6 +529,7 @@
         let maxProducibleCalculated = 0;
         const RECORDS_PAGE_SIZE = 50;
         let recordPageNumber = 1, recordPageCursors = [null], recordHasNext = false, recordPageLastDoc = null;
+        let recordSearchRecords = null, recordSearchCacheProject = '', recordSearchTimer = null, recordSearchRequestId = 0, recordSearchPageNumber = 1;
         let activeProject = '';
         let fbAuth, fbDb, stopRecordsListener = null, stopBomListener = null, stopInventorySummaryListener = null, stopProjectSummaryListener = null, stopSummaryMetaListener = null;
 
@@ -628,6 +629,12 @@
         }
 
         function changeRecordPage(delta) {
+            const search = document.getElementById('filter-search').value.trim();
+            if (search && recordSearchCacheProject === activeProject && recordSearchRecords) {
+                const pageCount = Math.max(1, Math.ceil(filteredRecords.length / RECORDS_PAGE_SIZE));
+                recordSearchPageNumber = Math.min(pageCount, Math.max(1, recordSearchPageNumber + delta));
+                renderTable(); updateRecordPagination(); return;
+            }
             if (delta > 0 && !recordHasNext) return;
             const nextPage = recordPageNumber + delta;
             if (nextPage < 1) return;
@@ -642,6 +649,15 @@
 
         function updateRecordPagination() {
             const project = document.getElementById('filter-record-project').value;
+            const search = document.getElementById('filter-search').value.trim();
+            const allProjectSearchReady = search && recordSearchRecords && recordSearchCacheProject === activeProject;
+            if (allProjectSearchReady) {
+                const pageCount = Math.max(1, Math.ceil(filteredRecords.length / RECORDS_PAGE_SIZE));
+                document.getElementById('record-page-info').textContent = `${activeProject} · 全專案搜尋結果 ${filteredRecords.length} 筆 · 第 ${recordSearchPageNumber}/${pageCount} 頁`;
+                document.getElementById('record-prev-page').disabled = recordSearchPageNumber <= 1;
+                document.getElementById('record-next-page').disabled = recordSearchPageNumber >= pageCount;
+                return;
+            }
             document.getElementById('record-page-info').textContent = `${project === 'ALL' ? '全部專案' : project} · 第 ${recordPageNumber} 頁 · 每頁 ${RECORDS_PAGE_SIZE} 筆`;
             document.getElementById('record-prev-page').disabled = recordPageNumber <= 1;
             document.getElementById('record-next-page').disabled = !recordHasNext;
@@ -765,6 +781,7 @@
         function openProjectOverview(project) {
             activeProject = String(project || '').trim();
             if (!activeProject) return;
+            recordSearchRecords = null; recordSearchCacheProject = ''; recordSearchRequestId++;
             const recordSelect = document.getElementById('filter-record-project');
             const bomSelect = document.getElementById('filter-bom-project');
             recordSelect.value = activeProject;
@@ -900,6 +917,7 @@
             if (!fbAuth?.currentUser) { renderSignedOut(); return; }
             stopProjectDataListeners();
             activeProject = '';
+            recordSearchRecords = null; recordSearchCacheProject = ''; recordSearchRequestId++;
             records = []; bomList = []; inventorySummaries = [];
             document.getElementById('signed-out-view').classList.add('hidden');
             document.getElementById('workspace-view').classList.add('hidden');
@@ -1034,8 +1052,8 @@
             if(p[1]==='records'){
                 const col=fbDb.collection('records');
                 if(method==='GET') { const docs=await getAllQueryDocs(col.orderBy('date','desc')); return {records:docs.map(d=>{const v=d.data();return {id:d.id,...v,attachment_url:v.attachment_data_url||''};})}; }
-                if(method==='POST'){requireSignedIn(true);requireSummaryReady();const rows=Array.isArray(body)?body:[body];if(!rows.length||rows.length>500)throw new Error('每次最多新增 500 筆明細');for(let i=0;i<rows.length;i+=80){const batch=fbDb.batch(),delta={inventory:new Map(),projects:new Map()};for(const raw of rows.slice(i,i+80)){const d=cleanRecord(raw),ref=col.doc(encodeURIComponent(String(raw.id||firebase.firestore().collection('_ids').doc().id)));d.created_at=new Date().toISOString();batch.set(ref,d);batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:new Date().toISOString()},{merge:true});addRecordSummaryDelta(delta,d,1);const detail={date:d.date,type:d.type,item_no:d.item_no,item_name:d.item_name,quantity:d.quantity,project:d.project};batch.set(fbDb.collection('audit_log').doc(),{actor_email:d.created_by,actor_uid:fbAuth.currentUser.uid,action:'create',entity_type:'inventory_record',entity_id:ref.id,detail,createdAt:firebase.firestore.FieldValue.serverTimestamp()});}queueSummaryDeltas(batch,delta);await batch.commit();}return {ok:true}; }
-                const ref=col.doc(key); if(method==='PUT'){requireSignedIn(true);requireSummaryReady();const d=cleanRecord(body),oldSnap=await ref.get();if(!oldSnap.exists)throw new Error('找不到要編輯的明細。');const old=oldSnap.data();d.updated_at=new Date().toISOString();const batch=fbDb.batch();batch.set(ref,d,{merge:true});batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:d.updated_at},{merge:true});queueSummaryDeltas(batch,createSummaryDeltaMap(old,d));await batch.commit();await audit('update','inventory_record',key,d);return {ok:true};} if(method==='DELETE'){requireSignedIn(true);requireSummaryReady();const snap=await ref.get();if(!snap.exists)throw new Error('找不到要刪除的明細。');const batch=fbDb.batch();batch.delete(ref);queueSummaryDeltas(batch,createSummaryDeltaMap(snap.data(),null));await batch.commit();await audit('delete','inventory_record',key);return {ok:true};}
+                if(method==='POST'){requireSignedIn(true);requireSummaryReady();const rows=Array.isArray(body)?body:[body];if(!rows.length||rows.length>500)throw new Error('每次最多新增 500 筆明細');for(let i=0;i<rows.length;i+=80){const batch=fbDb.batch(),delta={inventory:new Map(),projects:new Map()};for(const raw of rows.slice(i,i+80)){const d=cleanRecord(raw),ref=col.doc(encodeURIComponent(String(raw.id||firebase.firestore().collection('_ids').doc().id)));d.created_at=new Date().toISOString();batch.set(ref,d);batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:new Date().toISOString()},{merge:true});addRecordSummaryDelta(delta,d,1);const detail={date:d.date,type:d.type,item_no:d.item_no,item_name:d.item_name,quantity:d.quantity,project:d.project};batch.set(fbDb.collection('audit_log').doc(),{actor_email:d.created_by,actor_uid:fbAuth.currentUser.uid,action:'create',entity_type:'inventory_record',entity_id:ref.id,detail,createdAt:firebase.firestore.FieldValue.serverTimestamp()});}queueSummaryDeltas(batch,delta);await batch.commit();}recordSearchRecords=null;recordSearchCacheProject='';return {ok:true}; }
+                const ref=col.doc(key); if(method==='PUT'){requireSignedIn(true);requireSummaryReady();const d=cleanRecord(body),oldSnap=await ref.get();if(!oldSnap.exists)throw new Error('找不到要編輯的明細。');const old=oldSnap.data();d.updated_at=new Date().toISOString();const batch=fbDb.batch();batch.set(ref,d,{merge:true});batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:d.updated_at},{merge:true});queueSummaryDeltas(batch,createSummaryDeltaMap(old,d));await batch.commit();recordSearchRecords=null;recordSearchCacheProject='';await audit('update','inventory_record',key,d);return {ok:true};} if(method==='DELETE'){requireSignedIn(true);requireSummaryReady();const snap=await ref.get();if(!snap.exists)throw new Error('找不到要刪除的明細。');const batch=fbDb.batch();batch.delete(ref);queueSummaryDeltas(batch,createSummaryDeltaMap(snap.data(),null));await batch.commit();recordSearchRecords=null;recordSearchCacheProject='';await audit('delete','inventory_record',key);return {ok:true};}
             }
             if(p[1]==='bom'){
                 const col=fbDb.collection('bom'); if(method==='GET'){const docs=await getAllQueryDocs(col.orderBy('project'));return {bomList:docs.map(d=>({id:d.id,...d.data()}))};}
@@ -1488,24 +1506,45 @@
             document.getElementById('modal-delete').classList.add('hidden');
         }
 
+        function handleRecordSearch() {
+            clearTimeout(recordSearchTimer);
+            const search = document.getElementById('filter-search').value.trim();
+            if (!search) { recordSearchRequestId++; applyFilters(); updateRecordPagination(); return; }
+            if (recordSearchRecords && recordSearchCacheProject === activeProject) { recordSearchPageNumber = 1; applyFilters(); updateRecordPagination(); return; }
+            const requestId = ++recordSearchRequestId;
+            recordSearchTimer = setTimeout(async () => {
+                if (!fbAuth?.currentUser || !activeProject || requestId !== recordSearchRequestId) return;
+                document.getElementById('record-page-info').textContent = `正在搜尋 ${activeProject} 全部明細…`;
+                document.getElementById('record-prev-page').disabled = true;
+                document.getElementById('record-next-page').disabled = true;
+                try {
+                    const query = fbDb.collection('records').where('project', '==', activeProject).orderBy('date', 'desc');
+                    const docs = await getAllQueryDocs(query, 400);
+                    if (requestId !== recordSearchRequestId || activeProject !== document.getElementById('filter-record-project').value) return;
+                    recordSearchRecords = docs.map(d => ({ id: d.id, ...d.data(), attachment_url: d.data().attachment_data_url || '' }));
+                    recordSearchCacheProject = activeProject;
+                    recordSearchPageNumber = 1; applyFilters(); updateRecordPagination();
+                } catch (error) { showError(error); updateRecordPagination(); }
+            }, 500);
+        }
+
         function applyFilters() {
             updateRecordProjectDropdown();
 
             const search = document.getElementById('filter-search').value.toLowerCase().trim();
+            if (search && (!recordSearchRecords || recordSearchCacheProject !== activeProject)) { handleRecordSearch(); return; }
             const projectFilter = document.getElementById('filter-record-project').value;
             const type = document.getElementById('filter-type').value;
             const startDate = document.getElementById('filter-date-start').value;
             const endDate = document.getElementById('filter-date-end').value;
 
-            filteredRecords = records.filter(r => {
+            const searchSource = search && recordSearchCacheProject === activeProject ? recordSearchRecords : records;
+            filteredRecords = searchSource.filter(r => {
                 const itemProj = (r.project || '').trim();
                 const matchProject = projectFilter === 'ALL' || itemProj === projectFilter;
 
-                const matchSearch = !search || 
-                    (r.item_no && r.item_no.toLowerCase().includes(search)) ||
-                    (r.item_name && r.item_name.toLowerCase().includes(search)) ||
-                    (r.project && r.project.toLowerCase().includes(search)) ||
-                    (r.remark && r.remark.toLowerCase().includes(search));
+                const matchSearch = !search || [r.item_no, r.item_name, r.project, r.remark, r.counterparty, r.reference_no]
+                    .some(value => String(value || '').toLowerCase().includes(search));
 
                 const matchType = type === 'ALL' || r.type === type;
                 const matchStart = !startDate || r.date >= startDate;
@@ -1513,6 +1552,9 @@
 
                 return matchProject && matchSearch && matchType && matchStart && matchEnd;
             });
+
+            const searchPageCount = Math.max(1, Math.ceil(filteredRecords.length / RECORDS_PAGE_SIZE));
+            if (search && recordSearchCacheProject === activeProject) recordSearchPageNumber = Math.min(recordSearchPageNumber, searchPageCount);
 
             filteredRecords.sort((a, b) => {
                 let valA = a[currentSort.field] || '';
@@ -1528,6 +1570,7 @@
 
             renderTable();
             renderStats();
+            updateRecordPagination();
         }
 
         function toggleSort(field) {
@@ -1561,7 +1604,11 @@
             }
             emptyState.classList.add('hidden');
 
-            filteredRecords.forEach(r => {
+            const search = document.getElementById('filter-search').value.trim();
+            const rowsToRender = search && recordSearchCacheProject === activeProject
+                ? filteredRecords.slice((recordSearchPageNumber - 1) * RECORDS_PAGE_SIZE, recordSearchPageNumber * RECORDS_PAGE_SIZE)
+                : filteredRecords;
+            rowsToRender.forEach(r => {
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition-colors";
 
