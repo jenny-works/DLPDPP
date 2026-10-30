@@ -230,7 +230,6 @@
                         <i data-lucide="download" class="w-3.5 h-3.5"></i><span>下載領料 CSV 範本</span>
                     </button>
                     <label class="admin-only hidden cursor-pointer px-3 py-2 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium">匯入明細 CSV<input type="file" accept=".csv,text/csv" onchange="handleRecordImport(event)" class="hidden"></label>
-                    <button onclick="bulkChangeRecordProject()" class="admin-only hidden px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium">多選變更專案</button>
                     <button onclick="exportSelectedRecords()" class="px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
                         <span>匯出明細</span>
@@ -395,7 +394,6 @@
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         <span>刪除選取 BOM</span>
                     </button>
-                    <button onclick="bulkChangeBomProject()" class="admin-only hidden px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium">多選變更專案</button>
                 </div>
             </div>
 
@@ -1095,7 +1093,6 @@
         function normalizeMovementType(value) {
             const type = String(value || '').trim().toUpperCase();
             if (type === 'IN' || type.startsWith('IN ') || type.includes('入庫')) return 'IN';
-            if (type === 'OUT' || type.startsWith('OUT ') || type.includes('出庫')) return 'OUT';
             if (['ISSUE', '領料', '領用'].includes(type) || type.includes('領料') || type.includes('領用')) return 'ISSUE';
             if (['SUPPLIER_RETURN', '退回供應商', '退還供應商', '供應商退回'].includes(type) || type.includes('退回供應商') || type.includes('退還供應商')) return 'SUPPLIER_RETURN';
             return '';
@@ -1106,7 +1103,7 @@
         }
 
         function downloadRecordTemplate() {
-            downloadCSV('日期,專案,異動類型,料號,品名,數量,對象,單號,備註\n', '領料與退回供應商匯入範本.csv');
+            downloadCSV('日期,專案,異動類型,料號,品名,數量,對象,單號,備註\n', '入庫_領料_退回供應商匯入範本.csv');
         }
 
         async function handleRecordImport(event) {
@@ -1127,8 +1124,8 @@
                         reference_no:String(row['單號']||row['領料單號']||row['退貨單號']||'').trim(),
                         remark:String(row['備註']||row['remark']||'').trim()
                     }));
-                    const invalid=rows.filter(r=>!r.date||!r.type||!r.item_no||!r.item_name||!Number.isFinite(r.quantity)||r.quantity<=0||!r.project);
-                    if(invalid.length)throw new Error(`CSV 第 ${invalid.slice(0,12).map(r=>r.csvRow).join('、')} 列資料不完整或有誤；請確認日期、專案、異動類型、料號、品名及大於 0 的數量。${invalid.length>12?'（尚有其他錯誤列）':''}`);
+                    const invalid=rows.filter(r=>!r.date||!['IN','ISSUE','SUPPLIER_RETURN'].includes(r.type)||!r.item_no||!r.item_name||!Number.isFinite(r.quantity)||r.quantity<=0||!r.project);
+                    if(invalid.length)throw new Error(`CSV 第 ${invalid.slice(0,12).map(r=>r.csvRow).join('、')} 列資料不完整或有誤；請確認日期、專案、料號、品名、大於 0 的數量，且異動類型填「入庫」、「領料」或「退回供應商」。${invalid.length>12?'（尚有其他錯誤列）':''}`);
                     const typeCounts=rows.reduce((acc,r)=>(acc[r.type]=(acc[r.type]||0)+1,acc),{});
                     const summary=Object.entries(typeCounts).map(([type,count])=>`${movementTypeLabel(type)} ${count} 筆`).join('、');
                     if(!confirm(`準備匯入 ${rows.length} 筆異動（${summary}）。領料及退回供應商都會扣減該專案庫存，是否繼續？`))return;
