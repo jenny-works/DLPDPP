@@ -786,6 +786,7 @@
         }
 
         function openProjectOverview(project) {
+            clearRecordSearch();
             activeProject = String(project || '').trim();
             if (!activeProject) return;
             recordSearchRecords = null; recordSearchCacheProject = ''; recordSearchRequestId++;
@@ -922,6 +923,7 @@
 
         function showProjectHome() {
             if (!fbAuth?.currentUser) { renderSignedOut(); return; }
+            clearRecordSearch();
             stopProjectDataListeners();
             activeProject = '';
             recordSearchRecords = null; recordSearchCacheProject = ''; recordSearchRequestId++;
@@ -1404,7 +1406,19 @@
             link.click();
         }
 
+        function clearRecordSearch() {
+            clearTimeout(recordSearchTimer);
+            recordSearchRequestId++;
+            const input = document.getElementById('filter-search');
+            if (input) input.value = '';
+            recordSearchPageNumber = 1;
+        }
+
         function switchTab(tab) {
+            if (tab !== 'records' && document.getElementById('filter-search').value.trim()) {
+                clearRecordSearch();
+                applyFilters();
+            }
             const views = {
                 records: document.getElementById('tab-records-view'),
                 stock: document.getElementById('tab-stock-view'),
