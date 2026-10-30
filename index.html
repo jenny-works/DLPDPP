@@ -25,7 +25,7 @@
                     <i data-lucide="boxes" class="w-6 h-6"></i>
                 </div>
                 <button type="button" onclick="showProjectHome()" class="text-left rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" title="返回首頁">
-                    <h1 class="text-xl font-bold text-slate-900 leading-none">DL 入出庫明細與庫存系統</h1>
+                    <h1 class="text-xl font-bold text-slate-900 leading-none">入出庫明細與庫存系統</h1>
                     <span class="text-xs text-slate-500">Inventory & BOM Reconciliation System</span>
                 </button>
             </div>
@@ -67,7 +67,7 @@
         <section id="signed-out-view" class="hidden">
             <div class="mx-auto flex min-h-[58vh] max-w-xl flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
                 <span class="rounded-2xl bg-indigo-50 p-4 text-indigo-600"><i data-lucide="boxes" class="h-9 w-9"></i></span>
-                <h2 class="mt-5 text-2xl font-bold text-slate-900">入出庫明細與庫存系統</h2>
+                <h2 class="mt-5 text-2xl font-bold text-slate-900">DL 入出庫明細與庫存系統</h2>
                 <p class="mt-2 text-sm text-slate-500">登入後即可查看專案、庫存及 BOM 資料。</p>
                 <button id="btn-login-center" type="button" onclick="toggleAdminMode()" class="mt-7 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200">
                     <i data-lucide="log-in" class="h-5 w-5"></i><span>使用 Google 登入</span>
@@ -1969,14 +1969,7 @@
                 if (request === dispatchRequest) {
                     const message = String(error.message || '');
                     if (message.includes('requires an index')) {
-                        status.textContent = '單據查詢尚未完成設定，請管理員建立索引；建立完成後按「重新整理」。';
-                        const match = message.match(/https:\/\/console\.firebase\.google\.com\/[^\s]+/);
-                        if (match && currentUser?.user?.role === 'admin') {
-                            const link = document.createElement('a');
-                            link.href = match[0]; link.target = '_blank'; link.rel = 'noopener noreferrer';
-                            link.textContent = '建立索引'; link.className = 'ml-3 inline-block rounded-lg border border-indigo-300 px-3 py-2 text-indigo-700';
-                            status.appendChild(link);
-                        }
+                        status.textContent = '單據查詢尚未完成設定，請聯絡管理員。';
                     } else if (error.code === 'permission-denied') {
                         status.textContent = '目前無法讀取單據，請確認帳號權限與最新 Firebase 規則已發布。';
                     } else {
