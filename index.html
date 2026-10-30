@@ -1886,7 +1886,7 @@
                     <td class="p-4 font-medium text-slate-900">${escapeHtml(item.item_name)}</td>
                     <td class="p-4 text-right font-semibold text-slate-600">${Number(item.required_qty).toLocaleString()}</td>
                     <td class="p-4 text-right font-bold text-indigo-700 bg-indigo-50/30">${totalTargetDemand.toLocaleString()}</td>
-                    <td class="p-4 text-right font-semibold text-emerald-600">+${inQty.toLocaleString()}</td>
+                    <td class="p-4 text-right font-semibold text-emerald-600">${availableQty.toLocaleString()}</td>
                     <td class="p-4 text-right font-bold ${shortage > 0 ? 'text-rose-600' : 'text-slate-400'}">${shortage > 0 ? shortage.toLocaleString() : 0}</td>
                     <td class="p-4 text-center">${statusBadge}</td>
                     <td class="p-4 text-slate-500 max-w-xs truncate" title="${escapeHtml(item.remark || '')}">${escapeHtml(item.remark || '-')}</td>
