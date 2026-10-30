@@ -129,21 +129,12 @@
                 </div>
             </div>
 
-            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-                <div class="flex flex-wrap items-center justify-between gap-3"><h3 class="text-lg font-bold">借出單／送貨單</h3><button type="button" onclick="loadDispatchDocuments(true)" class="rounded-lg border px-3 py-2 text-sm">載入／重新整理單據</button></div>
-                <p class="text-sm text-slate-500">獨立單據紀錄，不扣減庫存，也不參與專案或 BOM 勾稽。</p>
-                <details class="admin-only hidden rounded-xl border p-4" id="dispatch-editor"><summary class="cursor-pointer font-medium text-indigo-600">新增／編輯單據</summary>
-                    <form onsubmit="saveDispatchDocument(event)" class="mt-4 space-y-4"><input type="hidden" id="dispatch-id">
-                    <label class="block text-sm">單據類型<select id="dispatch-kind" class="ml-3 rounded-lg border px-3 py-2"><option value="LOAN">借出單</option><option value="DELIVERY">送貨單</option></select></label>
-                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label class="block text-sm text-slate-600">日期<input id="dispatch-date" type="date" required  maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="block text-sm text-slate-600">品號<input id="dispatch-item_no" type="text" required  maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="block text-sm text-slate-600">品名<input id="dispatch-item_name" type="text" required  maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="block text-sm text-slate-600">數量<input id="dispatch-quantity" type="number" required min=0.000001 step=any maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="block text-sm text-slate-600">對象<input id="dispatch-counterparty" type="text" required  maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="block text-sm text-slate-600">寄送方式<input id="dispatch-shipping_method" type="text" required  maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="block text-sm text-slate-600">專案<input id="dispatch-project" type="text"   maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="block text-sm text-slate-600">備註<input id="dispatch-remark" type="text"   maxlength="2000" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label></div>
-                    <div class="flex gap-2"><button id="dispatch-save" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">儲存單據</button><button type="button" onclick="resetDispatchForm()" class="rounded-lg border px-4 py-2">清空／取消編輯</button></div></form>
-                </details>
-                <p id="dispatch-status" role="status" class="text-sm text-slate-500">按「載入／重新整理單據」查看紀錄。</p>
-                <div class="overflow-x-auto"><table class="w-full whitespace-nowrap text-left text-sm"><thead><tr class="bg-slate-100"><th class="p-3">類型</th><th class="p-3">日期</th><th class="p-3">品號</th><th class="p-3">品名</th><th class="p-3">數量</th><th class="p-3">對象</th><th class="p-3">寄送方式</th><th class="p-3">專案</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="dispatch-body"></tbody></table></div>
-                <button id="dispatch-next" type="button" onclick="loadDispatchDocuments(false)" class="hidden rounded-lg border px-3 py-2 text-sm">載入更多（每次 50 筆）</button>
-            </div>
+<div class="grid gap-4 sm:grid-cols-2"><button onclick="openDispatchPage('LOAN')" class="rounded-2xl border bg-white p-6 text-left shadow-sm hover:border-indigo-400"><span class="block text-xl font-bold text-indigo-700">借出單</span><span class="mt-2 block text-sm text-slate-500">新增與查看單據 →</span></button><button onclick="openDispatchPage('DELIVERY')" class="rounded-2xl border bg-white p-6 text-left shadow-sm hover:border-indigo-400"><span class="block text-xl font-bold text-indigo-700">送貨單</span><span class="mt-2 block text-sm text-slate-500">新增與查看單據 →</span></button></div>
         </section>
 
+<section id="dispatch-workspace" class="hidden space-y-5"><div class="flex items-center gap-4"><button onclick="showProjectHome()" class="rounded-lg border px-3 py-2">← 首頁</button><h2 id="dispatch-page-title" class="text-xl font-bold"></h2></div>
+<details id="dispatch-editor" class="admin-only hidden rounded-xl border bg-white p-5"><summary class="cursor-pointer font-bold text-indigo-600">新增／編輯單據</summary><form onsubmit="saveDispatchDocument(event)" class="mt-4 space-y-4"><input type="hidden" id="dispatch-id"><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm">日期<input id="dispatch-date" type="date" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">對象<input id="dispatch-counterparty" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">寄送方式<input id="dispatch-shipping_method" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">專案<input id="dispatch-project" type="text"  maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">備註<input id="dispatch-remark" type="text"  maxlength="2000" class="mt-1 w-full rounded-lg border px-3 py-2"></label></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th>品號</th><th>品名</th><th>數量</th><th>操作</th></tr></thead><tbody id="dispatch-item-rows"></tbody></table></div><button type="button" onclick="addDispatchItem()" class="rounded-lg border px-3 py-2 text-indigo-600">新增一列項目</button><div class="flex gap-3"><button id="dispatch-save" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">儲存整張單據</button><button type="button" onclick="resetDispatchForm()" class="rounded-lg border px-4 py-2">取消／清空</button></div></form></details>
+<div class="rounded-xl border bg-white p-5 space-y-4"><div class="flex items-center justify-between"><h3 class="font-bold">單據明細</h3><button onclick="loadDispatchDocuments(true)" class="rounded-lg border px-3 py-2">重新整理</button></div><p id="dispatch-status" class="text-sm text-slate-500" role="status"></p><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="bg-slate-100"><th class="p-3">日期</th><th class="p-3">品號／品名／數量</th><th class="p-3">對象</th><th class="p-3">寄送方式</th><th class="p-3">專案</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="dispatch-body"></tbody></table></div><button id="dispatch-next" onclick="loadDispatchDocuments(false)" class="hidden rounded-lg border px-3 py-2">載入更多</button></div></section>
         <section id="workspace-view" class="hidden space-y-6">
             <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <div class="flex items-center gap-3">
@@ -594,7 +585,7 @@
             stopRealtimeData();
             activeProject = '';
             document.getElementById('signed-out-view').classList.add('hidden');
-            document.getElementById('workspace-view').classList.add('hidden');
+            document.getElementById('dispatch-workspace').classList.add('hidden'); document.getElementById('workspace-view').classList.add('hidden');
             document.getElementById('project-home').classList.remove('hidden');
             document.getElementById('workspace-header-actions').classList.add('hidden');
             fbDb.collection('project_summaries').get().then(s => {
@@ -608,7 +599,7 @@
                 else document.getElementById('summary-notice')?.classList.add('hidden');
             }, showError);
         }
-        function renderSignedOut() { dispatchDocuments = []; dispatchCursor = null; document.getElementById('dispatch-body').innerHTML = ''; resetDispatchForm(); document.getElementById('signed-out-view').classList.remove('hidden'); document.getElementById('project-home').classList.add('hidden'); document.getElementById('workspace-view').classList.add('hidden'); document.getElementById('workspace-header-actions').classList.add('hidden'); document.getElementById('summary-notice')?.classList.add('hidden'); document.getElementById('table-body').innerHTML=''; document.getElementById('stock-table-body').innerHTML=''; document.getElementById('bom-table-body').innerHTML=''; document.getElementById('empty-state').classList.remove('hidden'); lucide.createIcons(); }
+        function renderSignedOut() { dispatchDocuments = []; dispatchCursor = null; document.getElementById('dispatch-body').innerHTML = ''; resetDispatchForm(); document.getElementById('signed-out-view').classList.remove('hidden'); document.getElementById('project-home').classList.add('hidden'); document.getElementById('dispatch-workspace').classList.add('hidden'); document.getElementById('workspace-view').classList.add('hidden'); document.getElementById('workspace-header-actions').classList.add('hidden'); document.getElementById('summary-notice')?.classList.add('hidden'); document.getElementById('table-body').innerHTML=''; document.getElementById('stock-table-body').innerHTML=''; document.getElementById('bom-table-body').innerHTML=''; document.getElementById('empty-state').classList.remove('hidden'); lucide.createIcons(); }
 
         function showSummaryNotice() {
             let notice = document.getElementById('summary-notice');
@@ -940,7 +931,7 @@
             recordSearchRecords = null; recordSearchCacheProject = ''; recordSearchRequestId++;
             records = []; bomList = []; inventorySummaries = [];
             document.getElementById('signed-out-view').classList.add('hidden');
-            document.getElementById('workspace-view').classList.add('hidden');
+            document.getElementById('dispatch-workspace').classList.add('hidden'); document.getElementById('workspace-view').classList.add('hidden');
             document.getElementById('project-home').classList.remove('hidden');
             document.getElementById('workspace-header-actions').classList.add('hidden');
             fbDb.collection('project_summaries').get().then(s => {
@@ -1930,6 +1921,83 @@
             document.getElementById('stat-total-count').innerHTML = `${totals.count} <span class="text-xs font-normal text-slate-500">筆</span>`;
             document.getElementById('stat-total-in').textContent = `+${totals.in.toLocaleString()}`;
             document.getElementById('stat-total-out').textContent = `-${totals.out.toLocaleString()}`;
+        }
+
+
+        let dispatchDocuments = [], dispatchCursor = null, dispatchLoading = false, dispatchKind = 'LOAN', dispatchRequest = 0;
+        function dispatchItems(d) { return Array.isArray(d.items) ? d.items : [{item_no:d.item_no || '',item_name:d.item_name || '',quantity:d.quantity || 0}]; }
+        function openDispatchPage(kind) {
+            if (!currentUser) return;
+            stopProjectDataListeners(); clearRecordSearch();
+            dispatchKind = kind; dispatchRequest++; dispatchLoading = false; dispatchDocuments = []; dispatchCursor = null;
+            document.getElementById('project-home').classList.add('hidden');
+            document.getElementById('workspace-view').classList.add('hidden');
+            document.getElementById('workspace-header-actions').classList.add('hidden');
+            document.getElementById('dispatch-workspace').classList.remove('hidden');
+            document.getElementById('dispatch-page-title').textContent = kind === 'LOAN' ? '借出單' : '送貨單';
+            resetDispatchForm(); renderDispatchDocuments(); loadDispatchDocuments(true);
+        }
+        function addDispatchItem(data = {}) {
+            const body = document.getElementById('dispatch-item-rows');
+            if (body.children.length >= 50) { showError(new Error('每張單據最多 50 個項目。')); return; }
+            const row = document.createElement('tr');
+            row.innerHTML = `<td class="p-2"><input required maxlength="200" class="dispatch-item-no w-full rounded border p-2" value="${escapeHtml(data.item_no || '')}"></td><td class="p-2"><input required maxlength="200" class="dispatch-item-name w-full rounded border p-2" value="${escapeHtml(data.item_name || '')}"></td><td class="p-2"><input required type="number" min="0.000001" step="any" class="dispatch-item-qty w-28 rounded border p-2" value="${escapeHtml(data.quantity ?? '')}"></td><td><button type="button" onclick="this.closest('tr').remove()" class="text-rose-600">移除</button></td>`;
+            body.appendChild(row);
+        }
+        function resetDispatchForm() {
+            document.getElementById('dispatch-id').value = '';
+            for (const key of ['date','counterparty','shipping_method','project','remark']) document.getElementById('dispatch-' + key).value = '';
+            document.getElementById('dispatch-item-rows').innerHTML = ''; addDispatchItem();
+            document.getElementById('dispatch-editor').open = false;
+        }
+        async function loadDispatchDocuments(reset = true) {
+            if (dispatchLoading) return;
+            dispatchLoading = true; const request = ++dispatchRequest;
+            const status = document.getElementById('dispatch-status'); status.textContent = '載入中…';
+            try {
+                requireSignedIn();
+                let query = fbDb.collection('dispatch_documents').where('kind','==',dispatchKind).orderBy('date','desc').limit(50);
+                if (!reset && dispatchCursor) query = query.startAfter(dispatchCursor);
+                const snapshot = await query.get();
+                if (request !== dispatchRequest) return;
+                const rows = snapshot.docs.map(d=>({...d.data(),id:d.id}));
+                dispatchDocuments = reset ? rows : dispatchDocuments.concat(rows);
+                dispatchCursor = snapshot.docs[snapshot.docs.length-1] || null;
+                document.getElementById('dispatch-next').classList.toggle('hidden',snapshot.size < 50);
+                renderDispatchDocuments();
+            } catch(error) { if(request===dispatchRequest) status.textContent='載入失敗：'+error.message; }
+            finally { if(request===dispatchRequest) dispatchLoading=false; }
+        }
+        function renderDispatchDocuments() {
+            document.getElementById('dispatch-status').textContent = `已載入 ${dispatchDocuments.length} 張單據`;
+            document.getElementById('dispatch-body').innerHTML = dispatchDocuments.map(d=>`<tr class="border-t align-top"><td class="p-3 whitespace-nowrap">${escapeHtml(d.date)}</td><td class="p-3">${dispatchItems(d).map(i=>`<div class="mb-2 border-b pb-2"><strong>${escapeHtml(i.item_no)}</strong><div>${escapeHtml(i.item_name)}</div><div>數量：${escapeHtml(i.quantity)}</div></div>`).join('')}</td>${['counterparty','shipping_method','project','remark'].map(k=>`<td class="p-3">${escapeHtml(d[k] || '')}</td>`).join('')}<td class="p-3">${isAdminMode ? `<button data-id="${escapeHtml(d.id)}" onclick="editDispatchDocument(this.dataset.id)" class="text-indigo-600">編輯</button>` : '唯讀'}</td></tr>`).join('');
+        }
+        function editDispatchDocument(id) {
+            try {
+                requireSignedIn(true); const d=dispatchDocuments.find(x=>x.id===id); if(!d) throw new Error('請重新載入單據。');
+                document.getElementById('dispatch-id').value=id;
+                for(const key of ['date','counterparty','shipping_method','project','remark']) document.getElementById('dispatch-'+key).value=d[key] || '';
+                document.getElementById('dispatch-item-rows').innerHTML=''; dispatchItems(d).forEach(addDispatchItem);
+                const editor=document.getElementById('dispatch-editor'); editor.open=true; editor.scrollIntoView({behavior:'smooth'});
+            } catch(error) {showError(error);}
+        }
+        async function saveDispatchDocument(event) {
+            event.preventDefault(); const button=document.getElementById('dispatch-save'); button.disabled=true;
+            try {
+                requireSignedIn(true); const data={kind:dispatchKind};
+                for(const key of ['date','counterparty','shipping_method','project','remark']) data[key]=document.getElementById('dispatch-'+key).value.trim();
+                const date=new Date(data.date+'T00:00:00Z');
+                if(!/^\d{4}-\d{2}-\d{2}$/.test(data.date)||Number.isNaN(date.getTime())||date.toISOString().slice(0,10)!==data.date) throw new Error('請填入有效日期。');
+                if(!data.counterparty||!data.shipping_method) throw new Error('請填入對象與寄送方式。');
+                if(['counterparty','shipping_method','project'].some(k=>data[k].length>200)||data.remark.length>2000) throw new Error('文字長度超過限制。');
+                data.items=[...document.querySelectorAll('#dispatch-item-rows tr')].map(row=>({item_no:row.querySelector('.dispatch-item-no').value.trim(),item_name:row.querySelector('.dispatch-item-name').value.trim(),quantity:Number(row.querySelector('.dispatch-item-qty').value)}));
+                if(!data.items.length||data.items.length>50||data.items.some(i=>!i.item_no||!i.item_name||i.item_no.length>200||i.item_name.length>200||!Number.isFinite(i.quantity)||i.quantity<=0||i.quantity>1e12)) throw new Error('請新增 1–50 個項目，填妥品號、品名與大於 0 的數量。');
+                data.updated_by=fbAuth.currentUser.uid; data.updated_at=new Date().toISOString();
+                const id=document.getElementById('dispatch-id').value;
+                if(id) await fbDb.collection('dispatch_documents').doc(id).update(data);
+                else await fbDb.collection('dispatch_documents').add({...data,created_by:fbAuth.currentUser.uid,created_at:new Date().toISOString()});
+                resetDispatchForm(); await loadDispatchDocuments(true); showToast('整張單據已儲存。');
+            } catch(error) {showError(error);} finally {button.disabled=false;}
         }
 
         function findRecordById(id) { return (recordSearchRecords || []).find(r => String(r.id) === String(id)) || records.find(r => String(r.id) === String(id)); }
