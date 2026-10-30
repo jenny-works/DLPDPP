@@ -202,9 +202,9 @@
             <!-- 篩選列 -->
             <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div class="flex flex-1 flex-col sm:flex-row items-center gap-3">
-                    <div class="relative flex-1 w-full sm:w-auto">
+                    <div class="relative w-full sm:flex-[1.5] sm:min-w-[16rem] lg:min-w-[20rem]">
                         <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="filter-search" oninput="applyFilters()" placeholder="搜尋..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input type="text" id="filter-search" oninput="applyFilters()" placeholder="搜尋料號、品名、專案或備註..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
 
                     <select id="filter-record-project" onchange="loadRecordPage(true)" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
@@ -213,10 +213,8 @@
 
                     <select id="filter-type" onchange="applyFilters()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
                         <option value="ALL">全部類型</option>
-                        <option value="IN">入庫</option>
-                        <option value="OUT">出庫</option>
-                        <option value="ISSUE">領料</option>
-                        <option value="SUPPLIER_RETURN">退回供應商</option>
+                        <option value="IN">入庫 (IN)</option>
+                        <option value="OUT">出庫 (OUT)</option>
                     </select>
 
                     <div class="flex items-center space-x-2 w-full sm:w-auto">
@@ -227,9 +225,6 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 self-end md:self-auto">
-                    <button onclick="downloadRecordTemplate()" class="px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
-                        <i data-lucide="download" class="w-3.5 h-3.5"></i><span>下載領料 CSV 範本</span>
-                    </button>
                     <label class="admin-only hidden cursor-pointer px-3 py-2 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium">匯入明細 CSV<input type="file" accept=".csv,text/csv" onchange="handleRecordImport(event)" class="hidden"></label>
                     <button onclick="bulkChangeRecordProject()" class="admin-only hidden px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium">多選變更專案</button>
                     <button onclick="exportSelectedRecords()" class="px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
@@ -258,7 +253,7 @@
                                         <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
                                     </div>
                                 </th>
-                                <th class="p-4">異動類型</th>
+                                <th class="p-4">類型</th>
                                 <th class="p-4">料號</th>
                                 <th class="p-4">品名</th>
                                 <th class="p-4 text-right cursor-pointer hover:bg-slate-200" onclick="toggleSort('quantity')">
@@ -268,8 +263,6 @@
                                     </div>
                                 </th>
                                 <th class="p-4">專案</th>
-                                <th class="p-4">對象</th>
-                                <th class="p-4">單號</th>
                                 <th class="p-4">備註</th>
                                 <th class="p-4">附件檔案</th>
                                 <th class="p-4 text-center admin-only hidden">操作</th>
@@ -335,7 +328,7 @@
                             <span>整機組裝齊料試算</span>
                             <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-700 text-indigo-200 font-normal">多階段模擬</span>
                         </h3>
-                        <p class="text-xs text-indigo-200 mt-0.5">選擇專案後，系統依該專案的可用庫存與 BOM 單機用量計算最多可組裝台數。</p>
+                        <p class="text-xs text-indigo-200 mt-0.5">選擇專案後，系統依該專案的累計入庫與 BOM 單機用量計算最多可組裝台數。</p>
                     </div>
                 </div>
 
@@ -413,7 +406,7 @@
                                 <th class="p-4">品名</th>
                                 <th class="p-4 text-right">單機 BOM 用量</th>
                                 <th class="p-4 text-right bg-indigo-50/50 text-indigo-900">目標總需求量</th>
-                                <th class="p-4 text-right">專案可用庫存</th>
+                                <th class="p-4 text-right">專案累計入庫</th>
                                 <th class="p-4 text-right">缺料數量</th>
                                 <th class="p-4 text-center">齊料狀態</th>
                                 <th class="p-4">備註</th>
@@ -839,7 +832,7 @@
                 const summaryValue = data.summary.exists ? data.summary.data() : {
                     record_count: data.records.length,
                     in_qty: data.records.reduce((n, d) => n + (String(d.data().type).toUpperCase() === 'IN' ? Number(d.data().quantity) || 0 : 0), 0),
-                    out_qty: data.records.reduce((n, d) => n + (['OUT','ISSUE','SUPPLIER_RETURN'].includes(String(d.data().type).toUpperCase()) ? Number(d.data().quantity) || 0 : 0), 0)
+                    out_qty: data.records.reduce((n, d) => n + (String(d.data().type).toUpperCase() === 'OUT' ? Number(d.data().quantity) || 0 : 0), 0)
                 };
                 operations.push({ kind: 'set', ref: fbDb.collection('project_summaries').doc(targetId), data: { ...summaryValue, project: nextName, updated_at: new Date().toISOString() } });
                 if (data.summary.exists) operations.push({ kind: 'delete', ref: data.summary.ref });
@@ -933,7 +926,7 @@
             const quantity = Number(record.quantity) || 0;
             const type = String(record.type || '').toUpperCase();
             const inDelta = type === 'IN' ? quantity * factor : 0;
-            const outDelta = ['OUT', 'ISSUE', 'SUPPLIER_RETURN'].includes(type) ? quantity * factor : 0;
+            const outDelta = type === 'OUT' ? quantity * factor : 0;
             const invId = inventorySummaryId(project, itemNo);
             const inv = map.inventory.get(invId) || { id: invId, project, item_no: itemNo, item_name: record.item_name || '', record_count: 0, in_qty: 0, out_qty: 0 };
             inv.record_count += factor; inv.in_qty += inDelta; inv.out_qty += outDelta;
@@ -1031,7 +1024,7 @@
 
         function requireSignedIn(write=false, admin=false) { if(!fbAuth?.currentUser) throw new Error('請先使用 Google 帳號登入。'); if(write&&!['admin','editor'].includes(currentUser?.user?.role)) throw new Error('目前帳號只有檢視權限。'); if(admin&&currentUser?.user?.role!=='admin') throw new Error('此操作僅限管理員。'); }
         function requireSummaryReady() { if (!summaryReady) throw new Error('請先由管理員按「建立統計索引」完成初始化，再新增或匯入明細。'); }
-        function cleanRecord(x) { const legacyUrl=String(x.attachment_url||''); const r={date:String(x.date||x.movement_date||'').trim(),type:String(x.type||'').toUpperCase(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),quantity:Number(x.quantity),project:String(x.project||'').trim(),counterparty:String(x.counterparty||'').trim(),reference_no:String(x.reference_no||'').trim(),remark:String(x.remark||'').trim(),attachment_id:x.attachment_id||null,attachment_name:String(x.attachment_name||''),attachment_data_url:String(x.attachment_data_url||(legacyUrl.startsWith('data:')?legacyUrl:'')),created_by:fbAuth.currentUser.email||'',updated_by:fbAuth.currentUser.email||''}; const parsedDate=new Date(`${r.date}T00:00:00Z`),safeAttachment=!r.attachment_data_url||/^data:(image\/(png|jpeg|gif|webp)|application\/(pdf|octet-stream|vnd\.ms-excel)|text\/(plain|csv)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet);base64,/i.test(r.attachment_data_url); if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==r.date||!['IN','OUT','ISSUE','SUPPLIER_RETURN','ADJUSTMENT'].includes(r.type)||!r.item_no||r.item_no.length>100||!r.item_name||r.item_name.length>200||!Number.isFinite(r.quantity)||r.quantity<=0||r.quantity>1e12||r.project.length>100||r.counterparty.length>200||r.reference_no.length>100||r.remark.length>2000||r.attachment_data_url.length>950000||r.attachment_name.length>255||!safeAttachment)throw new Error('明細欄位不正確，請檢查日期、異動類型、料號、品名、正數數量及附件格式。'); return r; }
+        function cleanRecord(x) { const legacyUrl=String(x.attachment_url||''); const r={date:String(x.date||x.movement_date||'').trim(),type:String(x.type||'').toUpperCase(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),quantity:Number(x.quantity),project:String(x.project||'').trim(),remark:String(x.remark||'').trim(),attachment_id:x.attachment_id||null,attachment_name:String(x.attachment_name||''),attachment_data_url:String(x.attachment_data_url||(legacyUrl.startsWith('data:')?legacyUrl:'')),created_by:fbAuth.currentUser.email||'',updated_by:fbAuth.currentUser.email||''}; const parsedDate=new Date(`${r.date}T00:00:00Z`),safeAttachment=!r.attachment_data_url||/^data:(image\/(png|jpeg|gif|webp)|application\/(pdf|octet-stream|vnd\.ms-excel)|text\/(plain|csv)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet);base64,/i.test(r.attachment_data_url); if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==r.date||!['IN','OUT','ADJUSTMENT'].includes(r.type)||!r.item_no||r.item_no.length>100||!r.item_name||r.item_name.length>200||!Number.isFinite(r.quantity)||r.quantity<=0||r.quantity>1e12||r.project.length>100||r.remark.length>2000||r.attachment_data_url.length>950000||r.attachment_name.length>255||!safeAttachment)throw new Error('明細欄位不正確，請檢查日期、類型、料號、品名、正數數量及附件格式。'); return r; }
         function cleanBom(x) { const b={project:String(x.project||'').trim(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),required_qty:Number(x.required_qty),remark:String(x.remark||'').trim(),updated_by:fbAuth.currentUser.email||''}; if(b.project.length>100||!b.item_no||b.item_no.length>100||!b.item_name||b.item_name.length>200||!Number.isFinite(b.required_qty)||b.required_qty<=0||b.remark.length>2000)throw new Error('BOM 欄位不正確，請檢查專案、料號、品名及正數用量。'); return b; }
         async function getAllQueryDocs(query, pageSize=1000) { const docs=[]; let cursor=null; while(true) { let page=query.limit(pageSize); if(cursor) page=page.startAfter(cursor); const snapshot=await page.get(); docs.push(...snapshot.docs); if(snapshot.size<pageSize) return docs; cursor=snapshot.docs[snapshot.docs.length-1]; } }
         async function audit(action, type, id, detail={}) { const uid=fbAuth.currentUser.uid; const safe={...detail}; delete safe.attachment_data_url; delete safe.attachment_url; await fbDb.collection('audit_log').add({actor_email:fbAuth.currentUser.email||'',actor_uid:uid,action,entity_type:type,entity_id:String(id),detail:safe,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); }
@@ -1073,47 +1066,13 @@
         async function exportCloudBackup(){try{const backup=await api('/api/backup');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`庫存雲端備份_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}catch(e){showError(e);}}
         async function importLegacyFile(event){const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const result=await api('/api/legacy-import',{method:'POST',body:data});alert(`匯入完成：${result.records} 筆異動、${result.bomList} 筆 BOM。`);}catch(e){showError(e);}finally{event.target.value='';}}
 
-        function normalizeMovementType(value) {
-            const type = String(value || '').trim().toUpperCase();
-            if (type === 'IN' || type.startsWith('IN ') || type.includes('入庫')) return 'IN';
-            if (type === 'OUT' || type.startsWith('OUT ') || type.includes('出庫')) return 'OUT';
-            if (['ISSUE', '領料', '領用'].includes(type) || type.includes('領料') || type.includes('領用')) return 'ISSUE';
-            if (['SUPPLIER_RETURN', '退回供應商', '退還供應商', '供應商退回'].includes(type) || type.includes('退回供應商') || type.includes('退還供應商')) return 'SUPPLIER_RETURN';
-            return '';
-        }
-
-        function movementTypeLabel(type) {
-            return ({ IN: '入庫', OUT: '出庫', ISSUE: '領料', SUPPLIER_RETURN: '退回供應商', ADJUSTMENT: '庫存調整' })[type] || '出庫';
-        }
-
-        function downloadRecordTemplate() {
-            downloadCSV('日期,專案,異動類型,料號,品名,數量,對象,單號,備註\n', '領料與出庫匯入範本.csv');
-        }
-
         async function handleRecordImport(event) {
             const file=event.target.files?.[0]; if(!file)return;
             Papa.parse(file,{header:true,skipEmptyLines:true,encoding:'UTF-8',complete:async({data,errors})=>{
                 try{
                     if(errors.length)throw new Error(`CSV 有 ${errors.length} 個格式問題，請檢查欄位及編碼。`);
-                    if(!data.length)throw new Error('CSV 只有標題，請填入資料後再匯入。');
-                    const rows=data.map((row,index)=>({
-                        csvRow:index+2,
-                        date:String(row['日期']||row['date']||'').trim(),
-                        type:normalizeMovementType(row['異動類型']||row['類型']||row['type']),
-                        item_no:String(row['料號']||row['item_no']||'').trim(),
-                        item_name:String(row['品名']||row['item_name']||'').trim(),
-                        quantity:Number(row['數量']||row['quantity']),
-                        project:String(row['專案']||row['project']||activeProject||'').trim(),
-                        counterparty:String(row['對象']||row['領料人']||row['供應商']||'').trim(),
-                        reference_no:String(row['單號']||row['領料單號']||row['退貨單號']||'').trim(),
-                        remark:String(row['備註']||row['remark']||'').trim()
-                    }));
-                    const invalid=rows.filter(r=>!r.date||!r.type||!r.item_no||!r.item_name||!Number.isFinite(r.quantity)||r.quantity<=0||!r.project);
-                    if(invalid.length)throw new Error(`CSV 第 ${invalid.slice(0,12).map(r=>r.csvRow).join('、')} 列資料不完整或有誤；請確認日期、專案、異動類型、料號、品名及大於 0 的數量。${invalid.length>12?'（尚有其他錯誤列）':''}`);
-                    const typeCounts=rows.reduce((acc,r)=>(acc[r.type]=(acc[r.type]||0)+1,acc),{});
-                    const summary=Object.entries(typeCounts).map(([type,count])=>`${movementTypeLabel(type)} ${count} 筆`).join('、');
-                    if(!confirm(`準備匯入 ${rows.length} 筆異動（${summary}）。領料及退回供應商都會扣減該專案庫存，是否繼續？`))return;
-                    rows.forEach(r=>delete r.csvRow);
+                    const rows=data.map(row=>({date:(row['日期']||row['date']||'').trim(),type:(/OUT|出庫/i.test(row['類型']||row['type']||'')?'OUT':'IN'),item_no:(row['料號']||row['item_no']||'').trim(),item_name:(row['品名']||row['item_name']||'').trim(),quantity:Number(row['數量']||row['quantity']),project:(row['專案']||row['project']||'').trim(),remark:(row['備註']||row['remark']||'').trim()})).filter(x=>x.date&&x.item_no&&x.item_name&&Number.isFinite(x.quantity)&&x.quantity>0);
+                    if(!rows.length)throw new Error('CSV 沒有可匯入的有效資料。');
                     for(let i=0;i<rows.length;i+=200)await api('/api/records',{method:'POST',body:rows.slice(i,i+200)});
                     alert(`匯入完成：${rows.length} 筆異動紀錄。`);
                 }catch(err){showError(err);}finally{event.target.value='';}
@@ -1136,7 +1095,7 @@
                 const startDate = document.getElementById('filter-date-start').value;
                 const endDate = document.getElementById('filter-date-end').value;
                 targetRecords = docs.map(d => ({ id: d.id, ...d.data() })).filter(r => {
-                    const matchSearch = !search || [r.item_no, r.item_name, r.project, r.counterparty, r.reference_no, r.remark].some(v => String(v || '').toLowerCase().includes(search));
+                    const matchSearch = !search || [r.item_no, r.item_name, r.project, r.remark].some(v => String(v || '').toLowerCase().includes(search));
                     return matchSearch && (type === 'ALL' || r.type === type) && (!startDate || r.date >= startDate) && (!endDate || r.date <= endDate);
                 });
             }
@@ -1146,13 +1105,11 @@
                 return;
             }
 
-            let csv = "日期,異動類型,料號,品名,數量,專案,對象,單號,備註\n";
+            let csv = "日期,類型,料號,品名,數量,專案,備註\n";
             targetRecords.forEach(r => {
-                const typeText = movementTypeLabel(r.type);
+                const typeText = r.type === 'IN' ? '入庫' : '出庫';
                 const remark = (r.remark || '').replace(/"/g, '""');
-                const counterparty = (r.counterparty || '').replace(/"/g, '""');
-                const referenceNo = (r.reference_no || '').replace(/"/g, '""');
-                csv += `"${r.date}","${typeText}","${r.item_no}","${r.item_name}",${r.quantity},"${r.project || ''}","${counterparty}","${referenceNo}","${remark}"\n`;
+                csv += `"${r.date}","${typeText}","${r.item_no}","${r.item_name}",${r.quantity},"${r.project || ''}","${remark}"\n`;
             });
 
             downloadCSV(csv, "Inventory_Records_明細匯出.csv");
@@ -1167,7 +1124,7 @@
             const projectInMap = {};
             inventorySummaries.forEach(r => {
                 const key = `${(r.project || '').trim()}__${(r.item_no || '').trim()}`;
-                projectInMap[key] = (projectInMap[key] || 0) + (Number(r.in_qty) || 0) - (Number(r.out_qty) || 0);
+                projectInMap[key] = (projectInMap[key] || 0) + (Number(r.in_qty) || 0);
             });
 
             if (checkedBoxes.length > 0) {
@@ -1182,17 +1139,17 @@
                 return;
             }
 
-            let csv = `專案名稱,料號,品名,單機BOM用量,目標整機台數,目標總需求量,專案可用庫存,缺料數量,齊料狀態,備註\n`;
+            let csv = `專案名稱,料號,品名,單機BOM用量,目標整機台數,目標總需求量,專案累計入庫,缺料數量,齊料狀態,備註\n`;
             targetBoms.forEach(item => {
                 const itemProj = (item.project || '').trim();
                 const key = `${itemProj}__${(item.item_no || '').trim()}`;
-                const availableQty = projectInMap[key] || 0;
+                const inQty = projectInMap[key] || 0;
                 const totalTargetDemand = item.required_qty * buildTargetQty;
-                const shortage = totalTargetDemand - availableQty;
+                const shortage = totalTargetDemand - inQty;
                 const status = shortage <= 0 ? "齊料" : "缺料";
                 const remark = (item.remark || '').replace(/"/g, '""');
 
-                csv += `"${item.project}","${item.item_no}","${item.item_name}",${item.required_qty},${buildTargetQty},${totalTargetDemand},${availableQty},${shortage > 0 ? shortage : 0},"${status}","${remark}"\n`;
+                csv += `"${item.project}","${item.item_no}","${item.item_name}",${item.required_qty},${buildTargetQty},${totalTargetDemand},${inQty},${shortage > 0 ? shortage : 0},"${status}","${remark}"\n`;
             });
 
             downloadCSV(csv, "BOM_Assembly_Reconciliation_組裝齊料匯出.csv");
@@ -1378,7 +1335,7 @@
         }
 
         function downloadBomTemplate() {
-            const csvContent = "專案名稱,料號,品名,單機BOM用量,備註\n";
+            const csvContent = "專案名稱,料號,品名,單機BOM用量,備註\n,,,,\n,,,,\n,,,,";
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
@@ -1439,10 +1396,8 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">類型 *</label>
                         <select required class="item-type w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                            <option value="IN" ${data && data.type === 'IN' ? 'selected' : ''}>入庫</option>
-                            <option value="OUT" ${data && data.type === 'OUT' ? 'selected' : ''}>出庫</option>
-                            <option value="ISSUE" ${data && data.type === 'ISSUE' ? 'selected' : ''}>領料（扣庫存）</option>
-                            <option value="SUPPLIER_RETURN" ${data && data.type === 'SUPPLIER_RETURN' ? 'selected' : ''}>退回供應商（扣庫存）</option>
+                            <option value="IN" ${data && data.type === 'IN' ? 'selected' : ''}>入庫 (IN)</option>
+                            <option value="OUT" ${data && data.type === 'OUT' ? 'selected' : ''}>出庫 (OUT)</option>
                         </select>
                     </div>
                     <div>
@@ -1464,23 +1419,15 @@
                         <input type="text" value="${escapeHtml(data ? data.project || '' : '')}" class="item-project w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">對象（領料人／供應商）</label>
-                        <input type="text" maxlength="200" value="${escapeHtml(data ? data.counterparty || '' : '')}" class="item-counterparty w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="選填">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">單號</label>
-                        <input type="text" maxlength="100" value="${escapeHtml(data ? data.reference_no || '' : '')}" class="item-reference-no w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="領料單／退貨單">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">夾帶附件</label>
+                        <input type="file" class="item-file w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-indigo-50 file:text-indigo-700">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">備註</label>
                         <input type="text" value="${escapeHtml(data ? data.remark || '' : '')}" class="item-remark w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">夾帶附件</label>
-                    <input type="file" class="item-file w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-indigo-50 file:text-indigo-700">
                 </div>
             `;
             container.appendChild(rowDiv);
@@ -1520,7 +1467,7 @@
                     const old=editId?records.find(r=>String(r.id)===String(editId)):null;
                     const file=row.querySelector('.item-file').files[0];
                     const uploaded=file?await uploadFile(file):null;
-                    payloads.push({date:row.querySelector('.item-date').value,type:row.querySelector('.item-type').value,item_no:row.querySelector('.item-no').value.trim(),item_name:row.querySelector('.item-name').value.trim(),quantity:Number(row.querySelector('.item-qty').value),project:row.querySelector('.item-project').value.trim(),counterparty:row.querySelector('.item-counterparty').value.trim(),reference_no:row.querySelector('.item-reference-no').value.trim(),remark:row.querySelector('.item-remark').value.trim(),attachment_id:uploaded?.id||old?.attachment_id||null,attachment_name:uploaded?.name||old?.attachment_name||'',attachment_data_url:uploaded?.data_url||old?.attachment_data_url||''});
+                    payloads.push({date:row.querySelector('.item-date').value,type:row.querySelector('.item-type').value,item_no:row.querySelector('.item-no').value.trim(),item_name:row.querySelector('.item-name').value.trim(),quantity:Number(row.querySelector('.item-qty').value),project:row.querySelector('.item-project').value.trim(),remark:row.querySelector('.item-remark').value.trim(),attachment_id:uploaded?.id||old?.attachment_id||null,attachment_name:uploaded?.name||old?.attachment_name||'',attachment_data_url:uploaded?.data_url||old?.attachment_data_url||''});
                 }
                 if(editId) await api(`/api/records/${encodeURIComponent(editId)}`,{method:'PUT',body:payloads[0]});
                 else await api('/api/records',{method:'POST',body:payloads});
@@ -1558,9 +1505,7 @@
                     (r.item_no && r.item_no.toLowerCase().includes(search)) ||
                     (r.item_name && r.item_name.toLowerCase().includes(search)) ||
                     (r.project && r.project.toLowerCase().includes(search)) ||
-                    (r.remark && r.remark.toLowerCase().includes(search)) ||
-                    (r.counterparty && r.counterparty.toLowerCase().includes(search)) ||
-                    (r.reference_no && r.reference_no.toLowerCase().includes(search));
+                    (r.remark && r.remark.toLowerCase().includes(search));
 
                 const matchType = type === 'ALL' || r.type === type;
                 const matchStart = !startDate || r.date >= startDate;
@@ -1621,10 +1566,9 @@
                 tr.className = "hover:bg-slate-50 transition-colors";
 
                 const isIN = r.type === 'IN';
-                const outboundLabel = movementTypeLabel(r.type);
-                const typeBadge = isIN
+                const typeBadge = isIN 
                     ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800"><i data-lucide="arrow-down-left" class="w-3 h-3 mr-1"></i> 入庫</span>`
-                    : `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${r.type === 'ISSUE' ? 'bg-amber-100 text-amber-800' : r.type === 'SUPPLIER_RETURN' ? 'bg-violet-100 text-violet-800' : 'bg-rose-100 text-rose-800'}"><i data-lucide="arrow-up-right" class="w-3 h-3 mr-1"></i> ${escapeHtml(outboundLabel)}</span>`;
+                    : `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800"><i data-lucide="arrow-up-right" class="w-3 h-3 mr-1"></i> 出庫</span>`;
 
                 const attachmentDisplay = r.attachment_url ? `
                     <a href="${escapeHtml(r.attachment_url)}" target="_blank" download="${escapeHtml(r.attachment_name || 'attachment')}" class="inline-flex items-center space-x-1 text-xs text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-2 py-1 rounded border border-indigo-100 max-w-[140px] truncate" title="${escapeHtml(r.attachment_name || '開啓檔案')}">
@@ -1656,8 +1600,6 @@
                     <td class="p-4 font-medium text-slate-900">${escapeHtml(r.item_name || '')}</td>
                     <td class="p-4 text-right font-semibold ${isIN ? 'text-emerald-600' : 'text-rose-600'}">${isIN ? '+' : '-'}${Number(r.quantity) || 0}</td>
                     <td class="p-4 text-slate-600"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${escapeHtml(r.project || '無')}</span></td>
-                    <td class="p-4 text-slate-600">${escapeHtml(r.counterparty || '-')}</td>
-                    <td class="p-4 text-slate-600">${escapeHtml(r.reference_no || '-')}</td>
                     <td class="p-4 text-slate-500 max-w-xs truncate" title="${escapeHtml(r.remark || '')}">${escapeHtml(r.remark || '-')}</td>
                     <td class="p-4">${attachmentDisplay}</td>
                     ${actionButtons}
@@ -1744,10 +1686,10 @@
             const projectInMap = {};
             inventorySummaries.forEach(r => {
                 const key = `${(r.project || '').trim()}__${(r.item_no || '').trim()}`;
-                projectInMap[key] = (projectInMap[key] || 0) + (Number(r.in_qty) || 0) - (Number(r.out_qty) || 0);
+                projectInMap[key] = (projectInMap[key] || 0) + (Number(r.in_qty) || 0);
             });
 
-            // BOM 與組裝試算依專案可用庫存（累計入庫 - 累計出庫）計算。
+            // 與 BOM 表的齊料判斷保持相同口徑：按專案以累計入庫量計算。
             const maxBadge = document.getElementById('max-producible-badge');
             if (projectFilter === 'ALL') {
                 maxProducibleCalculated = null;
@@ -1779,9 +1721,9 @@
                     (item.remark && item.remark.toLowerCase().includes(search));
 
                 const key = `${itemProj}__${(item.item_no || '').trim()}`;
-                const availableQty = projectInMap[key] || 0;
+                const inQty = projectInMap[key] || 0;
                 const totalTargetDemand = item.required_qty * buildTargetQty;
-                const shortage = Math.max(0, totalTargetDemand - availableQty);
+                const shortage = Math.max(0, totalTargetDemand - inQty);
 
                 const matchShortage = 
                     shortageFilter === 'ALL' ||
@@ -1793,9 +1735,9 @@
 
             list.forEach(item => {
                 const key = `${(item.project || '').trim()}__${(item.item_no || '').trim()}`;
-                const availableQty = projectInMap[key] || 0;
+                const inQty = projectInMap[key] || 0;
                 const totalTargetDemand = item.required_qty * buildTargetQty;
-                const shortage = totalTargetDemand - availableQty;
+                const shortage = totalTargetDemand - inQty;
 
                 if (shortage > 0) totalShortageItems++;
 
