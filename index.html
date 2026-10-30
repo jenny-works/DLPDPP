@@ -62,6 +62,20 @@
     <div id="app-message" role="status" class="hidden fixed top-20 right-4 z-50 max-w-lg rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm shadow-lg"></div>
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
+        <!-- 首頁專案總覽 -->
+        <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <div>
+                    <h2 class="text-base font-bold text-slate-800">專案總覽</h2>
+                    <p class="text-xs text-slate-500 mt-1">選擇專案可直接查看該專案明細</p>
+                </div>
+                <span id="project-overview-count" class="text-xs text-slate-500"></span>
+            </div>
+            <div id="project-overview" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <p class="text-sm text-slate-400">登入後載入專案…</p>
+            </div>
+        </section>
+
         <!-- 數據統計卡片 -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
@@ -150,6 +164,7 @@
 
                 <div class="flex flex-wrap items-center gap-2 self-end md:self-auto">
                     <label class="admin-only hidden cursor-pointer px-3 py-2 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium">匯入明細 CSV<input type="file" accept=".csv,text/csv" onchange="handleRecordImport(event)" class="hidden"></label>
+                    <button onclick="bulkChangeRecordProject()" class="admin-only hidden px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium">多選變更專案</button>
                     <button onclick="exportSelectedRecords()" class="px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
                         <span>匯出明細</span>
@@ -312,6 +327,7 @@
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         <span>刪除選取 BOM</span>
                     </button>
+                    <button onclick="bulkChangeBomProject()" class="admin-only hidden px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium">多選變更專案</button>
                 </div>
             </div>
 
@@ -475,7 +491,7 @@
                         isAdminMode = false; records = []; bomList = []; inventorySummaries = []; projectSummaries = []; summaryReady = false;
                         stopRealtimeData(); renderSignedOut();
                     }
-                    updateRoleUI(); updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable();
+                    updateRoleUI(); updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable(); renderProjectOverview();
                     lucide.createIcons();
                 } catch (err) { showError(err); } });
                 lucide.createIcons();
@@ -488,9 +504,9 @@
         }
         function startRealtimeData() {
             stopRealtimeData();
-            stopBomListener = fbDb.collection('bom').orderBy('project').onSnapshot(s => { bomList=s.docs.map(d=>({id:d.id,...d.data()})); updateBomProjectDropdown(); renderBomTable(); }, showError);
+            stopBomListener = fbDb.collection('bom').orderBy('project').onSnapshot(s => { bomList=s.docs.map(d=>({id:d.id,...d.data()})); updateBomProjectDropdown(); renderBomTable(); renderProjectOverview(); }, showError);
             stopInventorySummaryListener = fbDb.collection('inventory_summary').onSnapshot(s => { inventorySummaries=s.docs.map(d=>({id:d.id,...d.data()})); renderStockTable(); renderBomTable(); }, showError);
-            stopProjectSummaryListener = fbDb.collection('project_summaries').onSnapshot(s => { projectSummaries=s.docs.map(d=>({id:d.id,...d.data()})); updateRecordProjectDropdown(); renderStats(); }, showError);
+            stopProjectSummaryListener = fbDb.collection('project_summaries').onSnapshot(s => { projectSummaries=s.docs.map(d=>({id:d.id,...d.data()})); updateRecordProjectDropdown(); renderStats(); renderProjectOverview(); }, showError);
             stopSummaryMetaListener = fbDb.collection('app_meta').doc('inventory_summary_v1').onSnapshot(s => {
                 summaryReady = !!(s.exists && s.data().ready === true);
                 document.getElementById('btn-build-summary')?.classList.toggle('hidden', summaryReady || currentUser?.user.role !== 'admin');
@@ -596,6 +612,7 @@
             const projects = new Set();
             projectSummaries.forEach(p => { if (p.project && p.project.trim()) projects.add(p.project.trim()); });
             records.forEach(r => { if (r.project && r.project.trim()) projects.add(r.project.trim()); });
+            bomList.forEach(b => { if (b.project && b.project.trim()) projects.add(b.project.trim()); });
 
             select.innerHTML = '<option value="ALL">全部專案</option>';
             Array.from(projects).sort().forEach(proj => {
@@ -605,6 +622,42 @@
                 if (proj === currentSelected) opt.selected = true;
                 select.appendChild(opt);
             });
+        }
+
+        function renderProjectOverview() {
+            const container = document.getElementById('project-overview');
+            if (!container) return;
+            const projects = new Map();
+            projectSummaries.forEach(p => {
+                const name = String(p.project || '').trim();
+                if (name) projects.set(name, p);
+            });
+            bomList.forEach(b => {
+                const name = String(b.project || '').trim();
+                if (name && !projects.has(name)) projects.set(name, { project: name, record_count: 0, in_qty: 0, out_qty: 0 });
+            });
+            const sorted = [...projects.values()].sort((a,b) => a.project.localeCompare(b.project, 'zh-Hant'));
+            document.getElementById('project-overview-count').textContent = `${sorted.length} 個專案`;
+            if (!sorted.length) {
+                container.innerHTML = '<p class="text-sm text-slate-400">目前還沒有專案資料</p>';
+                return;
+            }
+            container.innerHTML = sorted.map(p => `
+                <button type="button" onclick="openProjectOverview(this.dataset.project)" data-project="${escapeHtml(p.project)}" class="text-left rounded-lg border border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50 p-4 transition">
+                    <span class="block text-sm font-bold text-slate-800 truncate">${escapeHtml(p.project)}</span>
+                    <span class="mt-2 flex justify-between text-xs text-slate-500"><span>異動 ${Number(p.record_count)||0} 筆</span><span>入庫 +${(Number(p.in_qty)||0).toLocaleString()}</span></span>
+                    <span class="mt-1 block text-xs text-rose-600">出庫 −${(Number(p.out_qty)||0).toLocaleString()}</span>
+                </button>`).join('');
+        }
+
+        function openProjectOverview(project) {
+            const recordSelect = document.getElementById('filter-record-project');
+            const bomSelect = document.getElementById('filter-bom-project');
+            recordSelect.value = project;
+            bomSelect.value = project;
+            loadRecordPage(true);
+            renderBomTable();
+            switchTab('records');
         }
 
         function stableDocId(value) {
@@ -910,6 +963,78 @@
         function toggleSelectAllBom(master) {
             const checkboxes = document.querySelectorAll('.bom-checkbox');
             checkboxes.forEach(cb => cb.checked = master.checked);
+        }
+
+        async function bulkChangeRecordProject() {
+            try {
+                requireSignedIn(true); requireSummaryReady();
+                const ids = new Set([...document.querySelectorAll('.record-checkbox:checked')].map(cb => cb.value));
+                const selected = records.filter(r => ids.has(String(r.id)));
+                if (!selected.length) { showToast('請先勾選要變更專案的明細。'); return; }
+                const oldProjects = [...new Set(selected.map(r => r.project || ''))];
+                const suggested = oldProjects.length === 1 ? oldProjects[0] : '';
+                const value = prompt(`已選取 ${selected.length} 筆明細，請輸入新的專案名稱：`, suggested);
+                if (value === null) return;
+                const project = value.trim();
+                if (!project || project.length > 100) throw new Error('專案名稱不可空白，且最多 100 個字元。');
+                const changed = selected.filter(r => (r.project || '') !== project);
+                if (!changed.length) { showToast('所選明細已經屬於這個專案。'); return; }
+                const batch = fbDb.batch(), delta = { inventory: new Map(), projects: new Map() };
+                const now = new Date().toISOString();
+                changed.forEach(r => {
+                    const updated = { ...r, project, updated_by: fbAuth.currentUser.email || '', updated_at: now };
+                    batch.update(fbDb.collection('records').doc(r.id), { project, updated_by: updated.updated_by, updated_at: now });
+                    addRecordSummaryDelta(delta, r, -1);
+                    addRecordSummaryDelta(delta, updated, 1);
+                    const detail = { item_no: r.item_no, from_project: r.project || '', to_project: project };
+                    batch.set(fbDb.collection('audit_log').doc(), { actor_email: updated.updated_by, actor_uid: fbAuth.currentUser.uid, action: 'change_project', entity_type: 'inventory_record', entity_id: r.id, detail, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                });
+                queueSummaryDeltas(batch, delta);
+                await batch.commit();
+                showToast(`已將 ${changed.length} 筆明細移至「${project}」。`);
+            } catch (err) { showError(err); }
+        }
+
+        async function bulkChangeBomProject() {
+            try {
+                requireSignedIn(true);
+                const ids = new Set([...document.querySelectorAll('.bom-checkbox:checked')].map(cb => cb.value));
+                const selected = bomList.filter(b => ids.has(String(b.id)));
+                if (!selected.length) { showToast('請先勾選要變更專案的 BOM 項目。'); return; }
+                if (selected.length > 150) throw new Error('一次最多變更 150 筆 BOM，請分批選取。');
+                const oldProjects = [...new Set(selected.map(b => b.project || ''))];
+                const suggested = oldProjects.length === 1 ? oldProjects[0] : '';
+                const value = prompt(`已選取 ${selected.length} 筆 BOM，請輸入新的專案名稱：`, suggested);
+                if (value === null) return;
+                const project = value.trim();
+                if (!project || project.length > 100) throw new Error('專案名稱不可空白，且最多 100 個字元。');
+                const changed = selected.filter(b => (b.project || '') !== project);
+                if (!changed.length) { showToast('所選 BOM 已經屬於這個專案。'); return; }
+                const selectedIds = new Set(changed.map(b => String(b.id)));
+                const targetIds = new Set();
+                for (const b of changed) {
+                    const targetId = encodeURIComponent(`${project}__${b.item_no}`);
+                    if (targetIds.has(targetId)) throw new Error(`選取項目中有重複料號「${b.item_no}」，無法移至同一專案。`);
+                    targetIds.add(targetId);
+                    const existing = bomList.find(other => String(other.id) === targetId);
+                    if (existing && !selectedIds.has(String(existing.id))) throw new Error(`目標專案已有料號「${b.item_no}」的 BOM，請先處理重複資料。`);
+                }
+                const now = new Date().toISOString(), batchSize = 100;
+                for (let i = 0; i < changed.length; i += batchSize) {
+                    const batch = fbDb.batch();
+                    changed.slice(i, i + batchSize).forEach(b => {
+                        const oldRef = fbDb.collection('bom').doc(b.id);
+                        const newId = encodeURIComponent(`${project}__${b.item_no}`);
+                        const newRef = fbDb.collection('bom').doc(newId);
+                        const updated = { ...b, project, updated_by: fbAuth.currentUser.email || '', updated_at: now };
+                        batch.delete(oldRef);
+                        batch.set(newRef, updated);
+                        batch.set(fbDb.collection('audit_log').doc(), { actor_email: updated.updated_by, actor_uid: fbAuth.currentUser.uid, action: 'change_project', entity_type: 'bom_requirement', entity_id: b.id, detail: { item_no: b.item_no, from_project: b.project || '', to_project: project }, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    });
+                    await batch.commit();
+                }
+                showToast(`已將 ${changed.length} 筆 BOM 移至「${project}」。`);
+            } catch (err) { showError(err); }
         }
 
         function handleBomImport(e) {
