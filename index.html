@@ -1048,7 +1048,40 @@
 
         function requireSignedIn(write=false, admin=false) { if(!fbAuth?.currentUser) throw new Error('請先使用 Google 帳號登入。'); if(write&&!['admin','editor'].includes(currentUser?.user?.role)) throw new Error('目前帳號只有檢視權限。'); if(admin&&currentUser?.user?.role!=='admin') throw new Error('此操作僅限管理員。'); }
         function requireSummaryReady() { if (!summaryReady) throw new Error('請先由管理員按「建立統計索引」完成初始化，再新增或匯入明細。'); }
-        function cleanRecord(x) { const legacyUrl=String(x.attachment_url||''); const r={date:String(x.date||x.movement_date||'').trim(),type:String(x.type||'').toUpperCase(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),quantity:Number(x.quantity),project:String(x.project||'').trim(),counterparty:String(x.counterparty||'').trim(),reference_no:String(x.reference_no||'').trim(),remark:String(x.remark||'').trim(),attachment_id:x.attachment_id||null,attachment_name:String(x.attachment_name||''),attachment_data_url:String(x.attachment_data_url||(legacyUrl.startsWith('data:')?legacyUrl:'')),created_by:fbAuth.currentUser.email||'',updated_by:fbAuth.currentUser.email||''}; const parsedDate=new Date(`${r.date}T00:00:00Z`),safeAttachment=!r.attachment_data_url||/^data:(image\/(png|jpeg|gif|webp)|application\/(pdf|octet-stream|vnd\.ms-excel)|text\/(plain|csv)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet);base64,/i.test(r.attachment_data_url); if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==r.date||!['IN','OUT','ISSUE','SUPPLIER_RETURN','ADJUSTMENT'].includes(r.type)||!r.item_no||r.item_no.length>100||!r.item_name||r.item_name.length>200||!Number.isFinite(r.quantity)||r.quantity<=0||r.quantity>1e12||r.project.length>100||r.counterparty.length>200||r.reference_no.length>100||r.remark.length>2000||r.attachment_data_url.length>950000||r.attachment_name.length>255||!safeAttachment)throw new Error('明細欄位不正確，請檢查日期、異動類型、料號、品名、正數數量及附件格式。'); return r; }
+        function cleanRecord(x) {
+            const legacyUrl = String(x.attachment_url || '');
+            const r = {
+                date: String(x.date || x.movement_date || '').trim(),
+                type: String(x.type || '').toUpperCase(),
+                item_no: String(x.item_no || '').trim(),
+                item_name: String(x.item_name || '').trim(),
+                quantity: Number(x.quantity),
+                project: String(x.project || '').trim(),
+                counterparty: String(x.counterparty || '').trim(),
+                reference_no: String(x.reference_no || '').trim(),
+                remark: String(x.remark || '').trim(),
+                attachment_id: x.attachment_id || null,
+                attachment_name: String(x.attachment_name || ''),
+                attachment_data_url: String(x.attachment_data_url || (legacyUrl.startsWith('data:') ? legacyUrl : '')),
+                created_by: fbAuth.currentUser.email || '',
+                updated_by: fbAuth.currentUser.email || ''
+            };
+            const parsedDate = new Date(`${r.date}T00:00:00Z`);
+            const safeAttachment = !r.attachment_data_url || /^data:(image\/(png|jpeg|gif|webp)|application\/(pdf|octet-stream|vnd\.ms-excel)|text\/(plain|csv)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet);base64,/i.test(r.attachment_data_url);
+            const invalid = [];
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(r.date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== r.date) invalid.push('日期須為 YYYY-MM-DD');
+            if (!['IN', 'OUT', 'ISSUE', 'SUPPLIER_RETURN', 'ADJUSTMENT'].includes(r.type)) invalid.push('異動類型');
+            if (!r.item_no || r.item_no.length > 100) invalid.push('料號（1–100 字）');
+            if (!r.item_name || r.item_name.length > 200) invalid.push('品名（1–200 字）');
+            if (!Number.isFinite(r.quantity) || r.quantity <= 0 || r.quantity > 1e12) invalid.push('數量須為大於 0 的數字');
+            if (r.project.length > 100) invalid.push('專案名稱不可超過 100 字');
+            if (r.counterparty.length > 200) invalid.push('對象不可超過 200 字');
+            if (r.reference_no.length > 100) invalid.push('單號不可超過 100 字');
+            if (r.remark.length > 2000) invalid.push('備註不可超過 2000 字');
+            if (r.attachment_data_url.length > 950000 || r.attachment_name.length > 255 || !safeAttachment) invalid.push('附件格式或大小');
+            if (invalid.length) throw new Error(`明細欄位不正確：${invalid.join('、')}。請修正後再匯入。`);
+            return r;
+        }
         function cleanBom(x) { const b={project:String(x.project||'').trim(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),required_qty:Number(x.required_qty),remark:String(x.remark||'').trim(),updated_by:fbAuth.currentUser.email||''}; if(b.project.length>100||!b.item_no||b.item_no.length>100||!b.item_name||b.item_name.length>200||!Number.isFinite(b.required_qty)||b.required_qty<=0||b.remark.length>2000)throw new Error('BOM 欄位不正確，請檢查專案、料號、品名及正數用量。'); return b; }
         async function getAllQueryDocs(query, pageSize=1000) { const docs=[]; let cursor=null; while(true) { let page=query.limit(pageSize); if(cursor) page=page.startAfter(cursor); const snapshot=await page.get(); docs.push(...snapshot.docs); if(snapshot.size<pageSize) return docs; cursor=snapshot.docs[snapshot.docs.length-1]; } }
         async function audit(action, type, id, detail={}) { const uid=fbAuth.currentUser.uid; const safe={...detail}; delete safe.attachment_data_url; delete safe.attachment_url; await fbDb.collection('audit_log').add({actor_email:fbAuth.currentUser.email||'',actor_uid:uid,action,entity_type:type,entity_id:String(id),detail:safe,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); }
@@ -1090,6 +1123,39 @@
         async function exportCloudBackup(){try{const backup=await api('/api/backup');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`庫存雲端備份_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}catch(e){showError(e);}}
         async function importLegacyFile(event){const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const result=await api('/api/legacy-import',{method:'POST',body:data});alert(`匯入完成：${result.records} 筆異動、${result.bomList} 筆 BOM。`);}catch(e){showError(e);}finally{event.target.value='';}}
 
+        function normalizeCsvDate(value) {
+            const raw = String(value ?? '').trim();
+            const valid = value => {
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+                const date = new Date(`${value}T00:00:00Z`);
+                return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+            };
+            const iso = raw.match(/^(\d{4}-\d{2}-\d{2})(?:[T ].*)?$/);
+            if (iso && valid(iso[1])) return iso[1];
+            let match = raw.match(/^(\d{4})[/.年-](\d{1,2})[/.月-](\d{1,2})日?$/);
+            if (match) {
+                const normalized = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+                if (valid(normalized)) return normalized;
+            }
+            match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+            if (match) {
+                const normalized = `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+                if (valid(normalized)) return normalized;
+            }
+            if (/^\d+(?:\.\d+)?$/.test(raw)) {
+                const serial = Number(raw);
+                if (serial >= 20000 && serial <= 80000) {
+                    const normalized = new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000).toISOString().slice(0, 10);
+                    if (valid(normalized)) return normalized;
+                }
+            }
+            return raw;
+        }
+
+        function normalizeCsvQuantity(value) {
+            return Number(String(value ?? '').replace(/,/g, '').trim());
+        }
+
         function normalizeMovementType(value) {
             const type = String(value || '').trim().toUpperCase();
             if (type === 'IN' || type.startsWith('IN ') || type.includes('入庫')) return 'IN';
@@ -1114,18 +1180,30 @@
                     if(!data.length)throw new Error('CSV 只有標題，請填入資料後再匯入。');
                     const rows=data.map((row,index)=>({
                         csvRow:index+2,
-                        date:String(row['日期']||row['date']||'').trim(),
+                        date:normalizeCsvDate(row['日期']||row['date']||''),
                         type:normalizeMovementType(row['異動類型']||row['類型']||row['type']),
                         item_no:String(row['料號']||row['item_no']||'').trim(),
                         item_name:String(row['品名']||row['item_name']||'').trim(),
-                        quantity:Number(row['數量']||row['quantity']),
+                        quantity:normalizeCsvQuantity(row['數量']||row['quantity']),
                         project:String(row['專案']||row['project']||activeProject||'').trim(),
                         counterparty:String(row['對象']||row['領料人']||row['供應商']||'').trim(),
                         reference_no:String(row['單號']||row['領料單號']||row['退貨單號']||'').trim(),
                         remark:String(row['備註']||row['remark']||'').trim()
                     }));
-                    const invalid=rows.filter(r=>!r.date||!['IN','ISSUE','SUPPLIER_RETURN'].includes(r.type)||!r.item_no||!r.item_name||!Number.isFinite(r.quantity)||r.quantity<=0||!r.project);
-                    if(invalid.length)throw new Error(`CSV 第 ${invalid.slice(0,12).map(r=>r.csvRow).join('、')} 列資料不完整或有誤；請確認日期、專案、料號、品名、大於 0 的數量，且異動類型填「入庫」、「領料」或「退回供應商」。${invalid.length>12?'（尚有其他錯誤列）':''}`);
+                    const invalid=rows.map(r=>{
+                        const issues=[];
+                        if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||Number.isNaN(new Date(`${r.date}T00:00:00Z`).getTime())||new Date(`${r.date}T00:00:00Z`).toISOString().slice(0,10)!==r.date)issues.push('日期格式');
+                        if(!['IN','ISSUE','SUPPLIER_RETURN'].includes(r.type))issues.push('異動類型');
+                        if(!r.project||r.project.length>100)issues.push('專案名稱');
+                        if(!r.item_no||r.item_no.length>100)issues.push('料號');
+                        if(!r.item_name||r.item_name.length>200)issues.push('品名');
+                        if(!Number.isFinite(r.quantity)||r.quantity<=0||r.quantity>1e12)issues.push('數量');
+                        if(r.counterparty.length>200)issues.push('對象字數');
+                        if(r.reference_no.length>100)issues.push('單號字數');
+                        if(r.remark.length>2000)issues.push('備註字數');
+                        return {row:r,issues};
+                    }).filter(x=>x.issues.length);
+                    if(invalid.length)throw new Error(`CSV 第 ${invalid.slice(0,10).map(x=>`${x.row.csvRow} 列（${x.issues.join('、')}）`).join('；')}資料不符合規定；日期可用 YYYY-MM-DD 或 YYYY/MM/DD，異動類型請填「入庫」、「領料」或「退回供應商」。${invalid.length>10?'（尚有其他錯誤列）':''}`);
                     const typeCounts=rows.reduce((acc,r)=>(acc[r.type]=(acc[r.type]||0)+1,acc),{});
                     const summary=Object.entries(typeCounts).map(([type,count])=>`${movementTypeLabel(type)} ${count} 筆`).join('、');
                     if(!confirm(`準備匯入 ${rows.length} 筆異動（${summary}）。領料及退回供應商都會扣減該專案庫存，是否繼續？`))return;
@@ -1545,7 +1623,7 @@
                 const rows=[...document.querySelectorAll('#items-container > div')];
                 const payloads=[];
                 for(const row of rows){
-                    const old=editId?records.find(r=>String(r.id)===String(editId)):null;
+                    const old=editId?findRecordById(editId):null;
                     const file=row.querySelector('.item-file').files[0];
                     const uploaded=file?await uploadFile(file):null;
                     payloads.push({date:row.querySelector('.item-date').value,type:row.querySelector('.item-type').value,item_no:row.querySelector('.item-no').value.trim(),item_name:row.querySelector('.item-name').value.trim(),quantity:Number(row.querySelector('.item-qty').value),project:row.querySelector('.item-project').value.trim(),counterparty:row.querySelector('.item-counterparty').value.trim(),reference_no:row.querySelector('.item-reference-no').value.trim(),remark:row.querySelector('.item-remark').value.trim(),attachment_id:uploaded?.id||old?.attachment_id||null,attachment_name:uploaded?.name||old?.attachment_name||'',attachment_data_url:uploaded?.data_url||old?.attachment_data_url||''});
@@ -1692,7 +1770,7 @@
                     <td class="p-4 text-center admin-only">
                         <div class="flex items-center justify-center space-x-2">
                             <button data-record-id="${escapeHtml(r.id)}" onclick="openModal(this.dataset.recordId)" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition" title="編輯">
-                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                                <i data-lucide="pencil" class="w-4 h-4"></i><span class="ml-1 text-xs">編輯</span>
                             </button>
                             <button data-record-id="${escapeHtml(r.id)}" onclick="confirmDelete(this.dataset.recordId)" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="刪除">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -1918,30 +1996,36 @@
             document.getElementById('stat-total-out').textContent = `-${totals.out.toLocaleString()}`;
         }
 
-        function openModal(id = null) {
-            const container = document.getElementById('items-container');
-            container.innerHTML = '';
-            rowCounter = 0;
+        function findRecordById(id) {
+            return (recordSearchRecords || []).find(item => String(item.id) === String(id))
+                || records.find(item => String(item.id) === String(id));
+        }
 
-            document.getElementById('form-edit-id').value = '';
-            const addMoreBtnContainer = document.getElementById('add-more-row-btn-container');
-
-            if (id) {
-                const r = records.find(item => String(item.id) === String(id));
-                if (r) {
-                    document.getElementById('modal-title').textContent = "編輯明細";
-                    document.getElementById('form-edit-id').value = r.id;
-                    addItemRow(r);
-                    addMoreBtnContainer.classList.add('hidden');
+        async function openModal(id = null) {
+            const modal = document.getElementById('modal-form');
+            modal.classList.add('hidden');
+            try {
+                requireSignedIn(true);
+                let record = id ? findRecordById(id) : null;
+                if (id && !record) {
+                    const snapshot = await fbDb.collection('records').doc(String(id)).get();
+                    if (!snapshot.exists) throw new Error('這筆明細已不存在，請重新整理列表。');
+                    record = { ...snapshot.data(), id: snapshot.id };
+                    records.push(record);
                 }
-            } else {
-                document.getElementById('modal-title').textContent = "新增明細";
-                addMoreBtnContainer.classList.remove('hidden');
-                addItemRow();
+                document.getElementById('items-container').innerHTML = '';
+                rowCounter = 0;
+                document.getElementById('form-edit-id').value = record ? record.id : '';
+                document.getElementById('modal-title').textContent = record ? '編輯明細' : '新增明細';
+                document.getElementById('add-more-row-btn-container').classList.toggle('hidden', !!record);
+                addItemRow(record);
+                if (!document.querySelector('#items-container .item-no')) throw new Error('明細表單建立失敗，請重新整理網站。');
+                modal.classList.remove('hidden');
+                lucide.createIcons();
+            } catch (error) {
+                modal.classList.add('hidden');
+                showError(error);
             }
-
-            document.getElementById('modal-form').classList.remove('hidden');
-            lucide.createIcons();
         }
 
         function closeModal() {
