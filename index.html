@@ -508,17 +508,6 @@
 
         async function toggleAdminMode() { try { if (!fbAuth) throw new Error('Firebase Auth 尚未初始化。請確認 firebase-config.js 與 index.html 在同一資料夾、設定值已填妥，並透過 GitHub Pages 或 localhost 開啟。'); if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
 
-        async function loadAllData() {
-            if (!fbAuth?.currentUser) return;
-            const [recordData, bomData] = await Promise.all([api('/api/records'), api('/api/bom')]);
-            records = recordData.records || []; bomList = bomData.bomList || [];
-            updateRecordProjectDropdown(); applyFilters(); renderStockTable(); renderBomTable();
-        }
-
-        async function loadRecords() { return api('/api/records'); }
-
-        async function loadBomData() { return api('/api/bom'); }
-
         function updateRecordProjectDropdown() {
             const select = document.getElementById('filter-record-project');
             if (!select) return;
@@ -603,7 +592,7 @@
             try{await api(`/api/users/${encodeURIComponent(email)}`,{method:'PUT',body:{role:role.trim()}});showToast(`已更新 ${email} 的權限。`);}catch(e){showError(e);}
         }
         async function exportCloudBackup(){try{const backup=await api('/api/backup');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`庫存雲端備份_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}catch(e){showError(e);}}
-        async function importLegacyFile(event){const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const result=await api('/api/legacy-import',{method:'POST',body:data});await loadAllData();alert(`匯入完成：${result.records} 筆異動、${result.bomList} 筆 BOM。`);}catch(e){showError(e);}finally{event.target.value='';}}
+        async function importLegacyFile(event){const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const result=await api('/api/legacy-import',{method:'POST',body:data});alert(`匯入完成：${result.records} 筆異動、${result.bomList} 筆 BOM。`);}catch(e){showError(e);}finally{event.target.value='';}}
 
         async function handleRecordImport(event) {
             const file=event.target.files?.[0]; if(!file)return;
@@ -613,7 +602,7 @@
                     const rows=data.map(row=>({date:(row['日期']||row['date']||'').trim(),type:(/OUT|出庫/i.test(row['類型']||row['type']||'')?'OUT':'IN'),item_no:(row['料號']||row['item_no']||'').trim(),item_name:(row['品名']||row['item_name']||'').trim(),quantity:Number(row['數量']||row['quantity']),project:(row['專案']||row['project']||'').trim(),remark:(row['備註']||row['remark']||'').trim()})).filter(x=>x.date&&x.item_no&&x.item_name&&Number.isFinite(x.quantity)&&x.quantity>0);
                     if(!rows.length)throw new Error('CSV 沒有可匯入的有效資料。');
                     for(let i=0;i<rows.length;i+=200)await api('/api/records',{method:'POST',body:rows.slice(i,i+200)});
-                    await loadAllData();alert(`匯入完成：${rows.length} 筆異動紀錄。`);
+                    alert(`匯入完成：${rows.length} 筆異動紀錄。`);
                 }catch(err){showError(err);}finally{event.target.value='';}
             }});
         }
@@ -731,14 +720,14 @@
                 const payload = { project:document.getElementById('bom-project').value.trim(), item_no:document.getElementById('bom-item-no').value.trim(), item_name:document.getElementById('bom-item-name').value.trim(), required_qty:Number(document.getElementById('bom-required-qty').value), remark:document.getElementById('bom-remark').value.trim() };
                 if (editId) await api(`/api/bom/${encodeURIComponent(editId)}`, {method:'PUT',body:payload});
                 else await api('/api/bom', {method:'POST',body:payload});
-                await loadAllData(); closeBomModal(); showToast('BOM 資料已儲存並同步。');
+                closeBomModal(); showToast('BOM 資料已儲存並同步。');
             } catch(err) { showError(err); }
             finally { btn.disabled = false; }
         }
 
         async function deleteBomItem(id) {
             if (!confirm('確定要刪除這筆 BOM 需求嗎？')) return;
-            try { await api(`/api/bom/${encodeURIComponent(id)}`, {method:'DELETE'}); await loadAllData(); }
+            try { await api(`/api/bom/${encodeURIComponent(id)}`, {method:'DELETE'}); }
             catch(err) { showError(err); }
         }
 
@@ -746,7 +735,7 @@
             const boxes = document.querySelectorAll('.bom-checkbox:checked');
             if (!boxes.length) { alert('請先勾選要刪除的 BOM 項目！'); return; }
             if (!confirm(`確定要刪除選取的 ${boxes.length} 筆 BOM 需求嗎？`)) return;
-            try { for (const box of boxes) await api(`/api/bom/${encodeURIComponent(box.value)}`, {method:'DELETE'}); await loadAllData(); }
+            try { for (const box of boxes) await api(`/api/bom/${encodeURIComponent(box.value)}`, {method:'DELETE'}); }
             catch(err) { showError(err); }
         }
 
@@ -782,7 +771,7 @@
                         if(row.project!==current.project&&!projectConflicts.some(x=>x.item_no===row.item_no)) projectConflicts.push({item_no:row.item_no,firstProject:current.project});
                     });
                     const rows=[...grouped.values()].map(item=>{if(item._names.length>1)nameConflicts.push(`${item.item_no}（已保留第一列品名「${item.item_name}」）`);delete item._source_rows;delete item._names;return item;});
-                    await api('/api/bom',{method:'POST',body:rows}); await loadAllData();
+                    await api('/api/bom',{method:'POST',body:rows});
                     const mergedCount=sourceRows.length-rows.length;
                     const conflictNotice=nameConflicts.length?`\n品名不同的料號已保留第一列品名：${nameConflicts.slice(0,5).join('；')}${nameConflicts.length>5?'等':''}`:'';
                     const projectNotice=projectConflicts.length?`\n注意：${projectConflicts.slice(0,5).map(x=>`${x.item_no} 同時出現在多個專案`).join('；')}${projectConflicts.length>5?'等':''}；合併後專案欄保留第一列的專案。`:'';
@@ -926,14 +915,14 @@
                 }
                 if(editId) await api(`/api/records/${encodeURIComponent(editId)}`,{method:'PUT',body:payloads[0]});
                 else await api('/api/records',{method:'POST',body:payloads});
-                await loadAllData(); closeModal(); showToast('異動紀錄已儲存並同步。');
+                closeModal(); showToast('異動紀錄已儲存並同步。');
             } catch(err){showError(err);} finally{btn.disabled=false;btn.textContent='儲存送出';}
         }
 
         function confirmDelete(id) {
             deleteTargetId=id; document.getElementById('modal-delete').classList.remove('hidden');
             document.getElementById('btn-confirm-delete').onclick=async()=>{
-                try{await api(`/api/records/${encodeURIComponent(deleteTargetId)}`,{method:'DELETE'});await loadAllData();closeDeleteModal();}
+                try{await api(`/api/records/${encodeURIComponent(deleteTargetId)}`,{method:'DELETE'});closeDeleteModal();}
                 catch(err){showError(err);}
             };
         }
