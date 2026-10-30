@@ -64,20 +64,61 @@
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
         <!-- 首頁專案總覽 -->
-        <section id="project-home" class="hidden bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-            <div class="flex items-center justify-between gap-3 mb-4">
-                <div>
-                    <h2 class="text-base font-bold text-slate-800">專案總覽</h2>
-                    <p class="text-xs text-slate-500 mt-1">選擇專案可直接查看該專案明細</p>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span id="project-overview-count" class="text-xs text-slate-500"></span>
-                    <button id="btn-build-summary-home" onclick="buildInventorySummary()" class="owner-only hidden px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium" title="初始化現有資料摘要，只需執行一次">建立統計索引</button>
+        <section id="project-home" class="hidden space-y-5">
+            <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-indigo-950 to-indigo-800 px-6 py-7 sm:px-8 sm:py-9 text-white shadow-lg">
+                <div class="absolute -right-10 -top-16 h-64 w-64 rounded-full border-[32px] border-white/5"></div>
+                <div class="absolute right-40 -bottom-28 h-64 w-64 rounded-full bg-indigo-400/10 blur-2xl"></div>
+                <div class="relative flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
+                    <div class="max-w-2xl">
+                        <span class="inline-flex items-center gap-2 rounded-full border border-indigo-300/25 bg-white/10 px-3 py-1 text-xs font-medium text-indigo-100">
+                            <i data-lucide="panels-top-left" class="h-3.5 w-3.5"></i> INVENTORY WORKSPACE
+                        </span>
+                        <h2 class="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">專案工作台</h2>
+                        <p class="mt-2 text-sm leading-6 text-indigo-100/80">選擇專案開始作業。明細、庫存和 BOM 會在你開啟時再載入。</p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[510px]">
+                        <div class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                            <p class="text-[11px] text-indigo-100/70">專案數</p><p id="home-project-count" class="mt-1 text-xl font-bold">0</p>
+                        </div>
+                        <div class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                            <p class="text-[11px] text-indigo-100/70">異動筆數</p><p id="home-record-count" class="mt-1 text-xl font-bold">0</p>
+                        </div>
+                        <div class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                            <p class="text-[11px] text-indigo-100/70">累計入庫</p><p id="home-in-qty" class="mt-1 text-xl font-bold text-emerald-300">0</p>
+                        </div>
+                        <div class="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                            <p class="text-[11px] text-indigo-100/70">累計出庫</p><p id="home-out-qty" class="mt-1 text-xl font-bold text-rose-300">0</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div id="project-overview" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <p class="text-sm text-slate-400">登入後載入專案…</p>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="rounded-lg bg-indigo-50 p-2 text-indigo-600"><i data-lucide="folder-kanban" class="h-5 w-5"></i></span>
+                            <h3 class="text-lg font-bold text-slate-900">選擇專案</h3>
+                        </div>
+                        <p id="project-overview-count" class="ml-12 mt-1 text-xs text-slate-500"></p>
+                    </div>
+                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label class="relative block w-full sm:w-64">
+                            <i data-lucide="search" class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
+                            <input id="filter-home-project" type="search" oninput="renderProjectOverview()" placeholder="搜尋專案名稱" class="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
+                        </label>
+                        <button id="btn-build-summary-home" onclick="buildInventorySummary()" class="owner-only hidden rounded-lg bg-amber-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-amber-700" title="初始化既有資料摘要，只需執行一次">建立統計索引</button>
+                    </div>
+                </div>
+                <div id="project-overview" class="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <p class="text-sm text-slate-400">登入後載入專案…</p>
+                </div>
+                <div id="project-overview-empty" class="mt-5 hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                    <i data-lucide="folder-search" class="mx-auto h-8 w-8 text-slate-400"></i>
+                    <p id="project-overview-empty-text" class="mt-3 text-sm font-medium text-slate-600"></p>
+                </div>
             </div>
+            <p class="flex items-center justify-center gap-2 pb-1 text-xs text-slate-400"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i>專案資料依權限管理；點選專案後才載入該專案作業資料</p>
         </section>
 
         <section id="workspace-view" class="hidden space-y-6">
@@ -664,17 +705,41 @@
                 if (name && !projects.has(name)) projects.set(name, { project: name, record_count: 0, in_qty: 0, out_qty: 0 });
             });
             const sorted = [...projects.values()].sort((a,b) => a.project.localeCompare(b.project, 'zh-Hant'));
-            document.getElementById('project-overview-count').textContent = `${sorted.length} 個專案`;
-            if (!sorted.length) {
-                container.innerHTML = '<p class="text-sm text-slate-400">目前還沒有專案資料</p>';
-                return;
-            }
-            container.innerHTML = sorted.map(p => `
-                <button type="button" onclick="openProjectOverview(this.dataset.project)" data-project="${escapeHtml(p.project)}" class="text-left rounded-lg border border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50 p-4 transition">
-                    <span class="block text-sm font-bold text-slate-800 truncate">${escapeHtml(p.project)}</span>
-                    <span class="mt-2 flex justify-between text-xs text-slate-500"><span>異動 ${Number(p.record_count)||0} 筆</span><span>入庫 +${(Number(p.in_qty)||0).toLocaleString()}</span></span>
-                    <span class="mt-1 block text-xs text-rose-600">出庫 −${(Number(p.out_qty)||0).toLocaleString()}</span>
+            const totals = sorted.reduce((acc, p) => ({
+                records: acc.records + (Number(p.record_count) || 0),
+                inbound: acc.inbound + (Number(p.in_qty) || 0),
+                outbound: acc.outbound + (Number(p.out_qty) || 0)
+            }), { records: 0, inbound: 0, outbound: 0 });
+            document.getElementById('home-project-count').textContent = sorted.length.toLocaleString();
+            document.getElementById('home-record-count').textContent = totals.records.toLocaleString();
+            document.getElementById('home-in-qty').textContent = `+${totals.inbound.toLocaleString()}`;
+            document.getElementById('home-out-qty').textContent = `−${totals.outbound.toLocaleString()}`;
+
+            const search = document.getElementById('filter-home-project').value.trim().toLowerCase();
+            const visible = sorted.filter(p => !search || p.project.toLowerCase().includes(search));
+            document.getElementById('project-overview-count').textContent = search ? `找到 ${visible.length} / ${sorted.length} 個專案` : `共 ${sorted.length} 個專案`;
+            container.innerHTML = visible.map((p, index) => `
+                <button type="button" onclick="openProjectOverview(this.dataset.project)" data-project="${escapeHtml(p.project)}" class="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <span class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${index % 3 === 0 ? 'from-indigo-500 to-violet-400' : index % 3 === 1 ? 'from-cyan-500 to-blue-400' : 'from-emerald-500 to-teal-400'}"></span>
+                    <span class="flex items-start justify-between gap-3">
+                        <span class="flex min-w-0 items-center gap-3">
+                            <span class="rounded-xl bg-indigo-50 p-3 text-indigo-600 transition group-hover:bg-indigo-600 group-hover:text-white"><i data-lucide="folder" class="h-5 w-5"></i></span>
+                            <span class="min-w-0"><span class="block truncate text-lg font-bold text-slate-900">${escapeHtml(p.project)}</span><span class="mt-0.5 block text-xs text-slate-500">庫存專案</span></span>
+                        </span>
+                        <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">${(Number(p.record_count)||0).toLocaleString()} 筆</span>
+                    </span>
+                    <span class="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                        <span><span class="block text-[11px] text-slate-500">累計入庫</span><span class="mt-1 block text-sm font-bold text-emerald-600">+${(Number(p.in_qty)||0).toLocaleString()}</span></span>
+                        <span><span class="block text-[11px] text-slate-500">累計出庫</span><span class="mt-1 block text-sm font-bold text-rose-600">−${(Number(p.out_qty)||0).toLocaleString()}</span></span>
+                    </span>
+                    <span class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold text-indigo-600"><span>開啟專案</span><i data-lucide="arrow-up-right" class="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"></i></span>
                 </button>`).join('');
+            const empty = document.getElementById('project-overview-empty');
+            empty.classList.toggle('hidden', visible.length > 0);
+            document.getElementById('project-overview-empty-text').textContent = sorted.length === 0
+                ? '目前沒有專案摘要；若是首次使用，請先建立統計索引。'
+                : '沒有符合名稱的專案，請調整搜尋條件。';
+            lucide.createIcons();
         }
 
         function openProjectOverview(project) {
