@@ -243,7 +243,7 @@
                             <span>整機組裝齊料試算</span>
                             <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-700 text-indigo-200 font-normal">多階段模擬</span>
                         </h3>
-                        <p class="text-xs text-indigo-200 mt-0.5">選擇專案後，系統依該專案的現有庫存（入庫扣除出庫）計算最多可組裝台數。</p>
+                        <p class="text-xs text-indigo-200 mt-0.5">選擇專案後，系統依該專案的累計入庫與 BOM 單機用量計算最多可組裝台數。</p>
                     </div>
                 </div>
 
@@ -1147,15 +1147,7 @@
                 }
             });
 
-            // 整機台數必須依所選專案獨立計算，使用淨庫存（入庫扣除出庫）。
-            const projectStockMap = {};
-            records.forEach(r => {
-                if (!r.item_no) return;
-                const key = `${(r.project || '').trim()}__${r.item_no.trim()}`;
-                const qty = Number(r.quantity) || 0;
-                projectStockMap[key] = (projectStockMap[key] || 0) + (r.type === 'IN' ? qty : r.type === 'OUT' ? -qty : 0);
-            });
-
+            // 與 BOM 表的齊料判斷保持相同口徑：按專案以累計入庫量計算。
             const maxBadge = document.getElementById('max-producible-badge');
             if (projectFilter === 'ALL') {
                 maxProducibleCalculated = null;
@@ -1166,7 +1158,7 @@
                 let minProducible = Infinity;
                 selectedProjectBom.forEach(item => {
                     const key = `${(item.project || '').trim()}__${(item.item_no || '').trim()}`;
-                    const stockQty = Math.max(0, projectStockMap[key] || 0);
+                    const stockQty = projectInMap[key] || 0;
                     const unitQty = Number(item.required_qty) || 0;
                     if (unitQty > 0) minProducible = Math.min(minProducible, Math.floor(stockQty / unitQty));
                 });
