@@ -134,7 +134,7 @@
 
 <section id="dispatch-workspace" class="hidden space-y-5"><div class="flex items-center gap-4"><button onclick="showProjectHome()" class="rounded-lg border px-3 py-2">← 首頁</button><h2 id="dispatch-page-title" class="text-xl font-bold"></h2></div>
 <details ontoggle="syncDispatchEditorView()" id="dispatch-editor" class="admin-only hidden rounded-xl border bg-white p-5"><summary class="cursor-pointer font-bold text-indigo-600">新增／編輯單據</summary><form onsubmit="saveDispatchDocument(event)" class="mt-4 space-y-4"><input type="hidden" id="dispatch-id"><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm">日期<input id="dispatch-date" type="date" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">對象<input id="dispatch-counterparty" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">寄送方式<input id="dispatch-shipping_method" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">專案<input id="dispatch-project" type="text"  maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">備註<input id="dispatch-remark" type="text"  maxlength="2000" class="mt-1 w-full rounded-lg border px-3 py-2"></label></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th>品號</th><th>品名</th><th>數量</th><th>備註</th><th>操作</th></tr></thead><tbody id="dispatch-item-rows"></tbody></table></div><button type="button" onclick="addDispatchItem()" class="rounded-lg border px-3 py-2 text-indigo-600">新增一列項目</button><div class="flex gap-3"><button id="dispatch-save" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">儲存整張單據</button><button type="button" onclick="resetDispatchForm()" class="rounded-lg border px-4 py-2">取消／清空</button></div></form></details>
-<div id="dispatch-list-panel" class="rounded-xl border bg-white p-5 space-y-4"><div class="flex items-center justify-between"><h3 class="font-bold">單據明細</h3><button type="button" onclick="exportSelectedDispatchDocuments()" class="rounded-lg border border-indigo-300 px-3 py-2 text-indigo-700">匯出勾選 CSV</button><button onclick="loadDispatchDocuments(true)" class="rounded-lg border px-3 py-2">重新整理</button></div><p id="dispatch-status" class="text-sm text-slate-500" role="status"></p><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="bg-slate-100"><th class="p-3"><input id="dispatch-select-all" type="checkbox" aria-label="全選已載入單據" onchange="toggleAllDispatchDocuments(this.checked)"></th><th class="p-3">日期</th><th class="p-3">品號／品名／數量</th><th class="p-3">對象</th><th class="p-3">寄送方式</th><th class="p-3">專案</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="dispatch-body"></tbody></table></div><button id="dispatch-next" onclick="loadDispatchDocuments(false)" class="hidden rounded-lg border px-3 py-2">載入更多</button></div></section>
+<div id="dispatch-list-panel" class="rounded-xl border bg-white p-5 space-y-4"><div class="flex items-center justify-between"><h3 class="font-bold">單據明細</h3><button type="button" onclick="exportSelectedDispatchDocuments()" class="rounded-lg border border-indigo-300 px-3 py-2 text-indigo-700">匯出勾選 CSV</button><button onclick="loadDispatchDocuments(true)" class="rounded-lg border px-3 py-2">重新整理</button></div><form onsubmit="event.preventDefault(); loadDispatchDocuments(true)" class="flex flex-wrap items-end gap-3"><label class="flex-1 min-w-[16rem] text-sm">關鍵字<input id="dispatch-search" type="search" placeholder="品號、品名、對象、專案、備註…" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">開始日期<input id="dispatch-date-start" type="date" class="mt-1 block rounded-lg border px-3 py-2"></label><label class="text-sm">結束日期<input id="dispatch-date-end" type="date" class="mt-1 block rounded-lg border px-3 py-2"></label><button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">查詢</button><button type="button" onclick="resetDispatchQuery();loadDispatchDocuments(true)" class="rounded-lg border px-4 py-2">清除查詢</button></form><p id="dispatch-status" class="text-sm text-slate-500" role="status"></p><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="bg-slate-100"><th class="p-3"><input id="dispatch-select-all" type="checkbox" aria-label="全選已載入單據" onchange="toggleAllDispatchDocuments(this.checked)"></th><th class="p-3">日期</th><th class="p-3">品號／品名／數量</th><th class="p-3">對象</th><th class="p-3">寄送方式</th><th class="p-3">專案</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="dispatch-body"></tbody></table></div><button id="dispatch-next" onclick="loadDispatchDocuments(false)" class="hidden rounded-lg border px-3 py-2">載入更多</button></div></section>
         <section id="workspace-view" class="hidden space-y-6">
             <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <div class="flex items-center gap-3">
@@ -1925,11 +1925,27 @@
 
 
         let dispatchDocuments = [], dispatchCursor = null, dispatchLoading = false, dispatchKind = 'LOAN', dispatchRequest = 0;
+        let dispatchQuery = {keyword:'',start:'',end:''};
+        let dispatchQueryAllLoaded = false;
+        function resetDispatchQuery() {
+            for (const id of ['dispatch-search','dispatch-date-start','dispatch-date-end']) document.getElementById(id).value = '';
+            dispatchQuery = {keyword:'',start:'',end:''}; dispatchQueryAllLoaded = false;
+        }
+        function matchingDispatchDocuments() {
+            return dispatchDocuments.filter(d => {
+                if (d.deleted) return false;
+                if (dispatchQuery.start && d.date < dispatchQuery.start) return false;
+                if (dispatchQuery.end && d.date > dispatchQuery.end) return false;
+                const values = [d.date,d.counterparty,d.shipping_method,d.project,d.remark,...dispatchItems(d).flatMap(i=>[i.item_no,i.item_name,i.remark])];
+                return !dispatchQuery.keyword || values.some(v=>String(v??'').toLowerCase().includes(dispatchQuery.keyword));
+            });
+        }
+
         function dispatchItems(d) { return Array.isArray(d.items) ? d.items : [{item_no:d.item_no || '',item_name:d.item_name || '',quantity:d.quantity || 0}]; }
         function openDispatchPage(kind) {
             if (!currentUser) return;
             stopProjectDataListeners(); clearRecordSearch();
-            dispatchKind = kind; dispatchRequest++; dispatchLoading = false; dispatchDocuments = []; dispatchCursor = null;
+            resetDispatchQuery(); dispatchKind = kind; dispatchRequest++; dispatchLoading = false; dispatchDocuments = []; dispatchCursor = null;
             document.getElementById('project-home').classList.add('hidden');
             document.getElementById('workspace-view').classList.add('hidden');
             document.getElementById('workspace-header-actions').classList.add('hidden');
@@ -1956,18 +1972,34 @@
         }
         async function loadDispatchDocuments(reset = true) {
             if (dispatchLoading) return;
+            if (reset) {
+                const next = {keyword:document.getElementById('dispatch-search').value.trim().toLowerCase(),start:document.getElementById('dispatch-date-start').value,end:document.getElementById('dispatch-date-end').value};
+                if (next.start && next.end && next.start > next.end) {showError(new Error('開始日期不可晚於結束日期。'));return;}
+                dispatchQuery = next;
+            }
             dispatchLoading = true; const request = ++dispatchRequest;
             const status = document.getElementById('dispatch-status'); status.textContent = '載入中…';
             try {
                 requireSignedIn();
-                let query = fbDb.collection('dispatch_documents').where('kind','==',dispatchKind).orderBy('date','desc').limit(50);
-                if (!reset && dispatchCursor) query = query.startAfter(dispatchCursor);
-                const snapshot = await query.get();
-                if (request !== dispatchRequest) return;
-                const rows = snapshot.docs.map(d=>({...d.data(),id:d.id}));
-                dispatchDocuments = reset ? rows : dispatchDocuments.concat(rows);
-                dispatchCursor = snapshot.docs[snapshot.docs.length-1] || null;
-                document.getElementById('dispatch-next').classList.toggle('hidden',snapshot.size < 50);
+                let query = fbDb.collection('dispatch_documents').where('kind','==',dispatchKind).orderBy('date','desc');
+                const searching = !!(dispatchQuery.keyword || dispatchQuery.start || dispatchQuery.end);
+                if (searching) {
+                    const docs = await getAllQueryDocs(query, 400);
+                    if (request !== dispatchRequest) return;
+                    dispatchDocuments = docs.map(d=>({...d.data(),id:d.id}));
+                    dispatchQueryAllLoaded = true; dispatchCursor = null;
+                    document.getElementById('dispatch-next').classList.add('hidden');
+                } else {
+                    query = query.limit(50);
+                    if (!reset && dispatchCursor) query = query.startAfter(dispatchCursor);
+                    const snapshot = await query.get();
+                    if (request !== dispatchRequest) return;
+                    const rows = snapshot.docs.map(d=>({...d.data(),id:d.id}));
+                    dispatchDocuments = reset ? rows : dispatchDocuments.concat(rows);
+                    dispatchQueryAllLoaded = false;
+                    dispatchCursor = snapshot.docs[snapshot.docs.length-1] || null;
+                    document.getElementById('dispatch-next').classList.toggle('hidden',snapshot.size < 50);
+                }
                 renderDispatchDocuments();
             } catch(error) {
                 if (request === dispatchRequest) {
@@ -1986,8 +2018,8 @@
         function renderDispatchDocuments() {
             const selectAll = document.getElementById('dispatch-select-all');
             selectAll.checked = false; selectAll.indeterminate = false;
-            document.getElementById('dispatch-status').textContent = `已載入 ${dispatchDocuments.filter(d=>!d.deleted).length} 張單據`;
-            document.getElementById('dispatch-body').innerHTML = dispatchDocuments.filter(d=>!d.deleted).map(d=>`<tr class="border-t align-top"><td class="p-3"><input type="checkbox" class="dispatch-checkbox" value="${escapeHtml(d.id)}" aria-label="選取單據" onchange="updateDispatchSelection()"></td><td class="p-3 whitespace-nowrap">${escapeHtml(d.date)}</td><td class="p-3">${dispatchItems(d).map(i=>`<div class="mb-2 border-b pb-2"><strong>${escapeHtml(i.item_no)}</strong><div>${escapeHtml(i.item_name)}</div><div>數量：${escapeHtml(i.quantity)}</div>${i.remark ? `<div class="mt-1 whitespace-pre-wrap text-slate-500">備註：${escapeHtml(i.remark)}</div>` : ''}</div>`).join('')}</td>${['counterparty','shipping_method','project','remark'].map(k=>`<td class="p-3">${escapeHtml(d[k] || '')}</td>`).join('')}<td class="p-3">${isAdminMode ? `<button data-id="${escapeHtml(d.id)}" onclick="editDispatchDocument(this.dataset.id)" class="inline-block rounded-lg border border-indigo-200 px-3 py-2 text-indigo-600">編輯</button> <button type="button" data-id="${escapeHtml(d.id)}" onclick="deleteDispatchDocument(this.dataset.id)" class="ml-2 inline-block rounded-lg border border-rose-200 px-3 py-2 text-rose-600">刪除</button>` : '唯讀'}</td></tr>`).join('');
+            document.getElementById('dispatch-status').textContent = `${dispatchQueryAllLoaded ? '查詢結果' : '已載入'} ${matchingDispatchDocuments().length} 張單據`;
+            document.getElementById('dispatch-body').innerHTML = matchingDispatchDocuments().map(d=>`<tr class="border-t align-top"><td class="p-3"><input type="checkbox" class="dispatch-checkbox" value="${escapeHtml(d.id)}" aria-label="選取單據" onchange="updateDispatchSelection()"></td><td class="p-3 whitespace-nowrap">${escapeHtml(d.date)}</td><td class="p-3">${dispatchItems(d).map(i=>`<div class="mb-2 border-b pb-2"><strong>${escapeHtml(i.item_no)}</strong><div>${escapeHtml(i.item_name)}</div><div>數量：${escapeHtml(i.quantity)}</div>${i.remark ? `<div class="mt-1 whitespace-pre-wrap text-slate-500">備註：${escapeHtml(i.remark)}</div>` : ''}</div>`).join('')}</td>${['counterparty','shipping_method','project','remark'].map(k=>`<td class="p-3">${escapeHtml(d[k] || '')}</td>`).join('')}<td class="p-3">${isAdminMode ? `<button data-id="${escapeHtml(d.id)}" onclick="editDispatchDocument(this.dataset.id)" class="inline-block rounded-lg border border-indigo-200 px-3 py-2 text-indigo-600">編輯</button> <button type="button" data-id="${escapeHtml(d.id)}" onclick="deleteDispatchDocument(this.dataset.id)" class="ml-2 inline-block rounded-lg border border-rose-200 px-3 py-2 text-rose-600">刪除</button>` : '唯讀'}</td></tr>`).join('');
         }
         async function deleteDispatchDocument(id) {
             try {
