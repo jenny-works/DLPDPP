@@ -2033,7 +2033,7 @@
             const selectAll = document.getElementById('dispatch-select-all');
             selectAll.checked = false; selectAll.indeterminate = false;
             document.getElementById('dispatch-status').textContent = `${dispatchQueryAllLoaded ? '查詢結果' : '已載入'} ${matchingDispatchDocuments().length} 張單據`;
-            document.getElementById('dispatch-body').innerHTML = matchingDispatchDocuments().map(d=>`<tr class="border-t align-top"><td class="p-3"><input type="checkbox" class="dispatch-checkbox" value="${escapeHtml(d.id)}" aria-label="選取單據" onchange="updateDispatchSelection()"></td><td class="p-3 whitespace-nowrap">${escapeHtml(d.date)}<div class="mt-1 text-xs text-indigo-600">${escapeHtml(d.document_no || (d.kind==='LOAN' ? '尚未編號' : ''))}</div></td><td class="p-3">${dispatchItems(d).map((i,index)=>`<div class="mb-2 border-b pb-2"><strong>${escapeHtml(i.item_no)}</strong><div>${escapeHtml(i.item_name)}</div><div>數量：${escapeHtml(i.quantity)}</div>${i.remark ? `<div class="mt-1 whitespace-pre-wrap text-slate-500">備註：${escapeHtml(i.remark)}</div>` : ''}${d.kind === 'LOAN' && isAdminMode ? `<button type="button" data-id="${escapeHtml(d.id)}" data-index="${index}" onclick="returnLoanItem(this.dataset.id,Number(this.dataset.index))" class="mt-2 rounded border border-emerald-300 px-3 py-1 text-emerald-700">轉歸還</button>` : ''}</div>`).join('')}</td>${['counterparty','shipping_method','project','remark'].map(k=>`<td class="p-3">${escapeHtml(d[k] || '')}</td>`).join('')}<td class="p-3">${isAdminMode ? `<button data-id="${escapeHtml(d.id)}" onclick="editDispatchDocument(this.dataset.id)" class="inline-block rounded-lg border border-indigo-200 px-3 py-2 text-indigo-600">編輯</button> <button type="button" data-id="${escapeHtml(d.id)}" onclick="deleteDispatchDocument(this.dataset.id)" class="ml-2 inline-block rounded-lg border border-rose-200 px-3 py-2 text-rose-600">刪除</button>` : '唯讀'}</td></tr>`).join('');
+            document.getElementById('dispatch-body').innerHTML = matchingDispatchDocuments().map(d=>`<tr class="border-t align-top"><td class="p-3"><input type="checkbox" class="dispatch-checkbox" value="${escapeHtml(d.id)}" aria-label="選取單據" onchange="updateDispatchSelection()"></td><td class="p-3 whitespace-nowrap">${escapeHtml(d.date)}<div class="mt-1 text-xs text-indigo-600">${escapeHtml(d.document_no || (d.kind==='LOAN' ? '尚未編號' : ''))}</div></td><td class="p-3">${dispatchItems(d).map((i,index)=>`<div class="mb-2 border-b pb-2">${d.kind === 'LOAN' && isAdminMode ? `<label class="mr-2 text-sm"><input type="checkbox" class="loan-return-item" data-loan-id="${escapeHtml(d.id)}" value="${index}"> 選取</label>` : ''}<strong>${escapeHtml(i.item_no)}</strong><div>${escapeHtml(i.item_name)}</div><div>數量：${escapeHtml(i.quantity)}</div>${i.remark ? `<div class="mt-1 whitespace-pre-wrap text-slate-500">備註：${escapeHtml(i.remark)}</div>` : ''}${d.kind === 'LOAN' && isAdminMode ? `<button type="button" data-id="${escapeHtml(d.id)}" data-index="${index}" onclick="returnLoanItem(this.dataset.id,Number(this.dataset.index))" class="mt-2 rounded border border-emerald-300 px-3 py-1 text-emerald-700">轉歸還</button>` : ''}</div>`).join('')}</td>${['counterparty','shipping_method','project','remark'].map(k=>`<td class="p-3">${escapeHtml(d[k] || '')}</td>`).join('')}<td class="p-3">${isAdminMode ? `${d.kind === 'LOAN' ? `<div class="mb-2 flex flex-wrap gap-2"><button type="button" data-id="${escapeHtml(d.id)}" onclick="returnSelectedLoanItems(this.dataset.id)" class="rounded border border-emerald-300 px-3 py-2 text-emerald-700">勾選轉歸還</button><button type="button" data-id="${escapeHtml(d.id)}" onclick="returnAllLoanItems(this.dataset.id)" class="rounded border px-3 py-2">整張轉歸還</button></div>` : ''}<button data-id="${escapeHtml(d.id)}" onclick="editDispatchDocument(this.dataset.id)" class="inline-block rounded-lg border border-indigo-200 px-3 py-2 text-indigo-600">編輯</button> <button type="button" data-id="${escapeHtml(d.id)}" onclick="deleteDispatchDocument(this.dataset.id)" class="ml-2 inline-block rounded-lg border border-rose-200 px-3 py-2 text-rose-600">刪除</button>` : '唯讀'}</td></tr>`).join('');
         }
         async function deleteDispatchDocument(id) {
             try {
@@ -2082,25 +2082,36 @@
             });
         }
 
-        async function returnLoanItem(id,index) {
+        function returnLoanItem(id,index) { return returnLoanItems(id,[index]); }
+        function returnSelectedLoanItems(id) {
+            const indices=[...document.querySelectorAll('.loan-return-item:checked')].filter(box=>box.dataset.loanId===id).map(box=>Number(box.value));
+            if (!indices.length) {showError(new Error('請先勾選這張借出單要歸還的品項。'));return;}
+            return returnLoanItems(id,indices);
+        }
+        function returnAllLoanItems(id) {
+            const loan=dispatchDocuments.find(d=>d.id===id);
+            if(loan) return returnLoanItems(id,dispatchItems(loan).map((item,index)=>index));
+        }
+        async function returnLoanItems(id,indices) {
             try {
                 requireSignedIn(true);
                 const loan=dispatchDocuments.find(d=>d.id===id && d.kind==='LOAN' && !d.deleted);
-                const item=loan && dispatchItems(loan)[index];
-                if(!item) throw new Error('找不到借出品項，請重新查詢。');
-                const source={...loan},copy={...item};
+                const chosen = [...new Set(indices)];
+                const items = loan && chosen.map(index=>dispatchItems(loan)[index]);
+                if(!items || !items.length || items.some(item=>!item)) throw new Error('找不到借出品項，請重新查詢。');
+                const source={...loan},copies=items.map(item=>({...item}));
                 if(!source.document_no) {
                     const payload={...source,items:dispatchItems(source),updated_by:fbAuth.currentUser.uid,updated_at:new Date().toISOString()};delete payload.id;
                     source.document_no=await saveNumberedLoan(payload,id);loan.document_no=source.document_no;
                 }
                 openDispatchPage('LOAN_RETURN');
-                dispatchReturnSource={source_loan_id:id,source_loan_item_index:index,source_loan_date:source.date,source_loan_number:source.document_no};
+                dispatchReturnSource={source_loan_id:id,source_loan_item_index:chosen[0],source_loan_item_indices:chosen,source_loan_date:source.date,source_loan_number:source.document_no};
                 for(const key of ['counterparty','shipping_method','project']) document.getElementById('dispatch-'+key).value=source[key] || '';
                 const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
                 const part=key=>parts.find(x=>x.type===key).value;
                 document.getElementById('dispatch-date').value=part('year')+'-'+part('month')+'-'+part('day');
                 document.getElementById('dispatch-remark').value='原借出日期：'+source.date+'；原借出單：'+source.document_no;
-                document.getElementById('dispatch-item-rows').innerHTML='';addDispatchItem(copy);
+                document.getElementById('dispatch-item-rows').innerHTML='';copies.forEach(item=>addDispatchItem(item));
                 const editor=document.getElementById('dispatch-editor');editor.open=true;syncDispatchEditorView();editor.scrollIntoView({behavior:'smooth'});
             } catch(error) {showError(error);}
         }
@@ -2109,7 +2120,7 @@
             try {
                 requireSignedIn(true); const d=dispatchDocuments.find(x=>x.id===id); if(!d) throw new Error('請重新載入單據。');
                 document.getElementById('dispatch-id').value=id;
-                dispatchReturnSource=d.source_loan_id ? {source_loan_id:d.source_loan_id,source_loan_item_index:d.source_loan_item_index,source_loan_date:d.source_loan_date || '',source_loan_number:d.source_loan_number || ''} : null;
+                dispatchReturnSource=d.source_loan_id ? {source_loan_id:d.source_loan_id,source_loan_item_index:d.source_loan_item_index ?? 0,source_loan_item_indices:d.source_loan_item_indices || [d.source_loan_item_index ?? 0],source_loan_date:d.source_loan_date || '',source_loan_number:d.source_loan_number || ''} : null;
                 for(const key of ['date','counterparty','shipping_method','project','remark']) document.getElementById('dispatch-'+key).value=d[key] || '';
                 document.getElementById('dispatch-item-rows').innerHTML=''; dispatchItems(d).forEach(addDispatchItem);
                 const editor=document.getElementById('dispatch-editor'); editor.open=true; syncDispatchEditorView(); editor.scrollIntoView({behavior:'smooth'});
