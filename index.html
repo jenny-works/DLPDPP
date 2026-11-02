@@ -287,7 +287,7 @@
                     <p class="text-base font-medium text-slate-600">目前沒有找到符合條件的明細</p>
                 </div>
                 <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
-                    <span><span id="record-page-info">每頁 50 筆</span><span class="ml-3 text-xs text-slate-400">搜尋會查詢所選專案全部明細；日期及類型可再篩選</span></span>
+                    <span><span id="record-page-info">每頁 50 筆</span><span class="ml-3 text-xs text-slate-400">搜尋、類型及日期篩選查詢所選專案全部明細，結果顯示於同一頁</span></span>
                     <div class="flex items-center gap-2">
                         <button id="record-prev-page" onclick="changeRecordPage(-1)" class="px-3 py-1.5 rounded border border-slate-300 disabled:opacity-40" disabled>上一頁</button>
                         <button id="record-next-page" onclick="changeRecordPage(1)" class="px-3 py-1.5 rounded border border-slate-300 disabled:opacity-40" disabled>下一頁</button>
@@ -639,11 +639,7 @@
 
         function changeRecordPage(delta) {
             const search = document.getElementById('filter-search').value.trim();
-            if (search && recordSearchCacheProject === activeProject && recordSearchRecords) {
-                const pageCount = Math.max(1, Math.ceil(filteredRecords.length / RECORDS_PAGE_SIZE));
-                recordSearchPageNumber = Math.min(pageCount, Math.max(1, recordSearchPageNumber + delta));
-                renderTable(); updateRecordPagination(); return;
-            }
+            if (hasRecordFilters()) return;
             if (delta > 0 && !recordHasNext) return;
             const nextPage = recordPageNumber + delta;
             if (nextPage < 1) return;
@@ -659,12 +655,12 @@
         function updateRecordPagination() {
             const project = document.getElementById('filter-record-project').value;
             const search = document.getElementById('filter-search').value.trim();
-            const allProjectSearchReady = search && recordSearchRecords && recordSearchCacheProject === activeProject;
+            const allProjectSearchReady = hasRecordFilters() && recordSearchRecords && recordSearchCacheProject === activeProject;
             if (allProjectSearchReady) {
                 const pageCount = Math.max(1, Math.ceil(filteredRecords.length / RECORDS_PAGE_SIZE));
-                document.getElementById('record-page-info').textContent = `${activeProject} · 全專案搜尋結果 ${filteredRecords.length} 筆 · 第 ${recordSearchPageNumber}/${pageCount} 頁`;
-                document.getElementById('record-prev-page').disabled = recordSearchPageNumber <= 1;
-                document.getElementById('record-next-page').disabled = recordSearchPageNumber >= pageCount;
+                document.getElementById('record-page-info').textContent = `${activeProject} · 符合 ${filteredRecords.length} 筆 · 全部顯示於本頁`;
+                document.getElementById('record-prev-page').disabled = true;
+                document.getElementById('record-next-page').disabled = true;
                 return;
             }
             document.getElementById('record-page-info').textContent = `${project === 'ALL' ? '全部專案' : project} · 第 ${recordPageNumber} 頁 · 每頁 ${RECORDS_PAGE_SIZE} 筆`;
@@ -1574,10 +1570,16 @@
             document.getElementById('modal-delete').classList.add('hidden');
         }
 
+        function hasRecordFilters() {
+            return !!document.getElementById('filter-search').value.trim()
+                || document.getElementById('filter-type').value !== 'ALL'
+                || !!document.getElementById('filter-date-start').value
+                || !!document.getElementById('filter-date-end').value;
+        }
         function handleRecordSearch() {
             clearTimeout(recordSearchTimer);
             const search = document.getElementById('filter-search').value.trim();
-            if (!search) { recordSearchRequestId++; applyFilters(); updateRecordPagination(); return; }
+            if (!hasRecordFilters()) { recordSearchRequestId++; applyFilters(); updateRecordPagination(); return; }
             if (recordSearchRecords && recordSearchCacheProject === activeProject) { recordSearchPageNumber = 1; applyFilters(); updateRecordPagination(); return; }
             const requestId = ++recordSearchRequestId;
             recordSearchTimer = setTimeout(async () => {
@@ -1600,13 +1602,13 @@
             updateRecordProjectDropdown();
 
             const search = document.getElementById('filter-search').value.toLowerCase().trim();
-            if (search && (!recordSearchRecords || recordSearchCacheProject !== activeProject)) { handleRecordSearch(); return; }
+            if (hasRecordFilters() && (!recordSearchRecords || recordSearchCacheProject !== activeProject)) { handleRecordSearch(); return; }
             const projectFilter = document.getElementById('filter-record-project').value;
             const type = document.getElementById('filter-type').value;
             const startDate = document.getElementById('filter-date-start').value;
             const endDate = document.getElementById('filter-date-end').value;
 
-            const searchSource = search && recordSearchCacheProject === activeProject ? recordSearchRecords : records;
+            const searchSource = hasRecordFilters() && recordSearchCacheProject === activeProject ? recordSearchRecords : records;
             filteredRecords = searchSource.filter(r => {
                 const itemProj = (r.project || '').trim();
                 const matchProject = projectFilter === 'ALL' || itemProj === projectFilter;
@@ -1673,9 +1675,7 @@
             emptyState.classList.add('hidden');
 
             const search = document.getElementById('filter-search').value.trim();
-            const rowsToRender = search && recordSearchCacheProject === activeProject
-                ? filteredRecords.slice((recordSearchPageNumber - 1) * RECORDS_PAGE_SIZE, recordSearchPageNumber * RECORDS_PAGE_SIZE)
-                : filteredRecords;
+            const rowsToRender = filteredRecords;
             rowsToRender.forEach(r => {
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition-colors";
