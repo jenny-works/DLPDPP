@@ -2000,7 +2000,8 @@
                 if (searching) {
                     const docs = await getAllQueryDocs(query, 400);
                     if (request !== dispatchRequest) return;
-                    dispatchDocuments = docs.map(d=>({...d.data(),id:d.id}));
+                    dispatchDocuments = await hydrateDispatchDocuments(docs);
+                    if (request !== dispatchRequest) return;
                     dispatchQueryAllLoaded = true; dispatchCursor = null;
                     document.getElementById('dispatch-next').classList.add('hidden');
                 } else {
@@ -2008,7 +2009,8 @@
                     if (!reset && dispatchCursor) query = query.startAfter(dispatchCursor);
                     const snapshot = await query.get();
                     if (request !== dispatchRequest) return;
-                    const rows = snapshot.docs.map(d=>({...d.data(),id:d.id}));
+                    const rows = await hydrateDispatchDocuments(snapshot.docs);
+                    if (request !== dispatchRequest) return;
                     dispatchDocuments = reset ? rows : dispatchDocuments.concat(rows);
                     dispatchQueryAllLoaded = false;
                     dispatchCursor = snapshot.docs[snapshot.docs.length-1] || null;
@@ -2064,12 +2066,44 @@
             for (const d of selected) for (const item of dispatchItems(d)) rows.push([dispatchKindLabel(d.kind),d.document_no || d.source_loan_number || '',d.date,item.item_no,item.item_name,item.quantity,item.remark || '',d.counterparty,d.shipping_method,d.project,d.remark]);
             downloadCSV(rows.map(row => row.map(quote).join(',')).join('\r\n'), `${dispatchKindLabel(dispatchKind)}_勾選匯出.csv`);
         }
+        function queueDispatchWrite(writer, ref, data) {
+            const items = data.items;
+            if (!Array.isArray(items) || !items.length || items.length > 50) throw new Error('單據必須包含 1–50 項。');
+            const header = {...data,storage_version:2,item_count:items.length,chunk_count:Math.ceil(items.length/10)};
+            header.items = firebase.firestore.FieldValue.delete();
+            delete header.id;
+            writer.set(ref,header,{merge:true});
+            for (let i=0;i<5;i++) {
+                const chunkRef=ref.collection('item_chunks').doc(String(i));
+                const chunk=items.slice(i*10,(i+1)*10);
+                if(chunk.length) writer.set(chunkRef,{index:i,items:chunk,updated_by:fbAuth.currentUser.uid});
+                else writer.delete(chunkRef);
+            }
+        }
+        async function hydrateDispatchDocuments(docs) {
+            return Promise.all(docs.map(async doc=>{
+                const data={...doc.data(),id:doc.id};
+                if(data.storage_version===2) {
+                    const chunks=await doc.ref.collection('item_chunks').orderBy('index').get();
+                    data.items=chunks.docs.flatMap(chunk=>chunk.data().items || []);
+                    if(data.items.length!==data.item_count) throw new Error('單據明細不完整，請重新載入或聯絡管理員。');
+                }
+                return data;
+            }));
+        }
+        async function saveChunkedDispatch(data,id) {
+            const ref=id ? fbDb.collection('dispatch_documents').doc(id) : fbDb.collection('dispatch_documents').doc();
+            const batch=fbDb.batch();
+            queueDispatchWrite(batch,ref,{...data,...(!id ? {created_by:fbAuth.currentUser.uid,created_at:new Date().toISOString()} : {})});
+            await batch.commit();
+        }
+
         async function saveNumberedLoan(data, id = null) {
             const ref = id ? fbDb.collection('dispatch_documents').doc(id) : fbDb.collection('dispatch_documents').doc();
             return fbDb.runTransaction(async tx => {
                 const existing = id ? await tx.get(ref) : null;
                 if (existing?.exists && existing.data().document_no) {
-                    tx.update(ref,data);return existing.data().document_no;
+                    queueDispatchWrite(tx,ref,data);return existing.data().document_no;
                 }
                 const day=data.date.replace(/-/g,'');
                 const counter=fbDb.collection('dispatch_number_counters').doc('LOAN_'+day);
@@ -2077,7 +2111,7 @@
                 const next=(snapshot.exists ? Number(snapshot.data().last) : 0)+1;
                 const no=day+'-'+String(next).padStart(2,'0');
                 tx.set(counter,{last:next,updated_by:fbAuth.currentUser.uid});
-                tx.set(ref,{...data,document_no:no,...(!id ? {created_by:fbAuth.currentUser.uid,created_at:new Date().toISOString()} : {})},{merge:true});
+                queueDispatchWrite(tx,ref,{...data,document_no:no,...(!id ? {created_by:fbAuth.currentUser.uid,created_at:new Date().toISOString()} : {})});
                 return no;
             });
         }
@@ -2141,8 +2175,7 @@
                 data.updated_by=fbAuth.currentUser.uid; data.updated_at=new Date().toISOString();
                 const id=document.getElementById('dispatch-id').value;
                 if(data.kind==='LOAN') await saveNumberedLoan(data,id || null);
-                else if(id) await fbDb.collection('dispatch_documents').doc(id).update(data);
-                else await fbDb.collection('dispatch_documents').add({...data,created_by:fbAuth.currentUser.uid,created_at:new Date().toISOString()});
+                else await saveChunkedDispatch(data,id || null);
                 resetDispatchForm(); await loadDispatchDocuments(true); showToast('整張單據已儲存。');
             } catch(error) {showError(new Error(`單據儲存失敗（${document.querySelectorAll('#dispatch-item-rows tr').length} 項）：${error.message || error}`));} finally {button.disabled=false;}
         }
