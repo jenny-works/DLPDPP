@@ -132,7 +132,7 @@
 <div class="grid gap-4 sm:grid-cols-2"><button onclick="openDispatchPage('LOAN')" class="rounded-2xl border bg-white p-6 text-left shadow-sm hover:border-indigo-400"><span class="block text-xl font-bold text-indigo-700">借出單</span><span class="mt-2 block text-sm text-slate-500">新增與查看單據 →</span></button><button onclick="openDispatchPage('DELIVERY')" class="rounded-2xl border bg-white p-6 text-left shadow-sm hover:border-indigo-400"><span class="block text-xl font-bold text-indigo-700">送貨單</span><span class="mt-2 block text-sm text-slate-500">新增與查看單據 →</span></button></div>
         </section>
 
-<section id="dispatch-workspace" class="hidden space-y-5"><div class="flex items-center gap-4"><button onclick="showProjectHome()" class="rounded-lg border px-3 py-2">← 首頁</button><h2 id="dispatch-page-title" class="text-xl font-bold"></h2></div>
+<section id="dispatch-workspace" class="hidden space-y-5"><div class="flex items-center gap-4"><button onclick="showProjectHome()" class="rounded-lg border px-3 py-2">← 首頁</button><h2 id="dispatch-page-title" class="text-xl font-bold"></h2><label id="loan-kind-label" class="hidden text-sm">單據類型<select id="loan-kind-select" onchange="changeLoanDocumentKind(this.value)" class="ml-2 rounded-lg border px-3 py-2"><option value="LOAN">借出單</option><option value="LOAN_RETURN">借出歸還單</option></select></label></div>
 <details ontoggle="syncDispatchEditorView()" id="dispatch-editor" class="admin-only hidden rounded-xl border bg-white p-5"><summary class="cursor-pointer font-bold text-indigo-600">新增／編輯單據</summary><form onsubmit="saveDispatchDocument(event)" class="mt-4 space-y-4"><input type="hidden" id="dispatch-id"><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm">日期<input id="dispatch-date" type="date" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">對象<input id="dispatch-counterparty" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">寄送方式<input id="dispatch-shipping_method" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">專案<input id="dispatch-project" type="text"  maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">備註<input id="dispatch-remark" type="text"  maxlength="2000" class="mt-1 w-full rounded-lg border px-3 py-2"></label></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th>品號</th><th>品名</th><th>數量</th><th>備註</th><th>操作</th></tr></thead><tbody id="dispatch-item-rows"></tbody></table></div><button type="button" onclick="addDispatchItem()" class="rounded-lg border px-3 py-2 text-indigo-600">新增一列項目</button><div class="flex gap-3"><button id="dispatch-save" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">儲存整張單據</button><button type="button" onclick="resetDispatchForm()" class="rounded-lg border px-4 py-2">取消／清空</button></div></form></details>
 <div id="dispatch-list-panel" class="rounded-xl border bg-white p-5 space-y-4"><div class="flex items-center justify-between"><h3 class="font-bold">單據明細</h3><button type="button" onclick="exportSelectedDispatchDocuments()" class="rounded-lg border border-indigo-300 px-3 py-2 text-indigo-700">匯出勾選 CSV</button><button onclick="loadDispatchDocuments(true)" class="rounded-lg border px-3 py-2">重新整理</button></div><form onsubmit="event.preventDefault(); loadDispatchDocuments(true)" class="flex flex-wrap items-end gap-3"><label class="flex-1 min-w-[16rem] text-sm">關鍵字<input id="dispatch-search" type="search" placeholder="品號、品名、對象、專案、備註…" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">開始日期<input id="dispatch-date-start" type="date" class="mt-1 block rounded-lg border px-3 py-2"></label><label class="text-sm">結束日期<input id="dispatch-date-end" type="date" class="mt-1 block rounded-lg border px-3 py-2"></label><button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">查詢</button><button type="button" onclick="resetDispatchQuery();loadDispatchDocuments(true)" class="rounded-lg border px-4 py-2">清除查詢</button></form><p id="dispatch-status" class="text-sm text-slate-500" role="status"></p><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="bg-slate-100"><th class="p-3"><input id="dispatch-select-all" type="checkbox" aria-label="全選已載入單據" onchange="toggleAllDispatchDocuments(this.checked)"></th><th class="p-3">日期</th><th class="p-3">品號／品名／數量</th><th class="p-3">對象</th><th class="p-3">寄送方式</th><th class="p-3">專案</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="dispatch-body"></tbody></table></div><button id="dispatch-next" onclick="loadDispatchDocuments(false)" class="hidden rounded-lg border px-3 py-2">載入更多</button></div></section>
         <section id="workspace-view" class="hidden space-y-6">
@@ -1942,7 +1942,19 @@
         }
 
         function dispatchItems(d) { return Array.isArray(d.items) ? d.items : [{item_no:d.item_no || '',item_name:d.item_name || '',quantity:d.quantity || 0}]; }
+        function dispatchKindLabel(kind) {
+            return ({LOAN:'借出單',LOAN_RETURN:'借出歸還單',DELIVERY:'送貨單'})[kind] || '單據';
+        }
+        function changeLoanDocumentKind(kind) {
+            if (document.getElementById('dispatch-editor').open && !confirm('切換類型將清空尚未儲存的表單，是否繼續？')) {
+                document.getElementById('loan-kind-select').value = dispatchKind; return;
+            }
+            openDispatchPage(kind);
+        }
         function openDispatchPage(kind) {
+            if (!['LOAN','LOAN_RETURN','DELIVERY'].includes(kind)) return;
+            document.getElementById('loan-kind-label').classList.toggle('hidden',kind === 'DELIVERY');
+            if (kind !== 'DELIVERY') document.getElementById('loan-kind-select').value=kind;
             if (!currentUser) return;
             stopProjectDataListeners(); clearRecordSearch();
             resetDispatchQuery(); dispatchKind = kind; dispatchRequest++; dispatchLoading = false; dispatchDocuments = []; dispatchCursor = null;
@@ -1950,7 +1962,7 @@
             document.getElementById('workspace-view').classList.add('hidden');
             document.getElementById('workspace-header-actions').classList.add('hidden');
             document.getElementById('dispatch-workspace').classList.remove('hidden');
-            document.getElementById('dispatch-page-title').textContent = kind === 'LOAN' ? '借出單' : '送貨單';
+            document.getElementById('dispatch-page-title').textContent = dispatchKindLabel(kind);
             resetDispatchForm(); renderDispatchDocuments(); loadDispatchDocuments(true);
         }
         function addDispatchItem(data = {}) {
@@ -2047,8 +2059,8 @@
             const selected = dispatchDocuments.filter(d => !d.deleted && ids.has(d.id));
             const quote = value => '"' + String(value ?? '').replace(/"/g, '""') + '"';
             const rows = [['單據類型','日期','品號','品名','數量','品項備註','對象','寄送方式','專案','單據備註']];
-            for (const d of selected) for (const item of dispatchItems(d)) rows.push([d.kind === 'LOAN' ? '借出單' : '送貨單',d.date,item.item_no,item.item_name,item.quantity,item.remark || '',d.counterparty,d.shipping_method,d.project,d.remark]);
-            downloadCSV(rows.map(row => row.map(quote).join(',')).join('\r\n'), `${dispatchKind === 'LOAN' ? '借出單' : '送貨單'}_勾選匯出.csv`);
+            for (const d of selected) for (const item of dispatchItems(d)) rows.push([dispatchKindLabel(d.kind),d.date,item.item_no,item.item_name,item.quantity,item.remark || '',d.counterparty,d.shipping_method,d.project,d.remark]);
+            downloadCSV(rows.map(row => row.map(quote).join(',')).join('\r\n'), `${dispatchKindLabel(dispatchKind)}_勾選匯出.csv`);
         }
         function editDispatchDocument(id) {
             try {
