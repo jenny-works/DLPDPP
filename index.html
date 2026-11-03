@@ -581,7 +581,23 @@
             [stopRecordsListener, stopBomListener, stopInventorySummaryListener, stopProjectSummaryListener].forEach(stop => { if (stop) stop(); });
             stopRecordsListener = stopBomListener = stopInventorySummaryListener = stopProjectSummaryListener = null;
         }
+        function rememberCurrentView(view, project = '', tab = 'records', kind = '') {
+            const params=new URLSearchParams({view});
+            if(project) {params.set('project',project);params.set('tab',tab);}
+            if(kind) params.set('kind',kind);
+            history.replaceState(null,'',location.pathname+location.search+'#'+params.toString());
+        }
+        function clearViewFilters() {
+            for(const id of ['filter-home-project','filter-search','filter-stock-search','filter-bom-search','filter-date-start','filter-date-end','dispatch-search','dispatch-date-start','dispatch-date-end']) {
+                const el=document.getElementById(id);if(el) el.value='';
+            }
+            for(const id of ['filter-type','filter-bom-shortage','filter-bom-category']) {
+                const el=document.getElementById(id);if(el) el.value='ALL';
+            }
+        }
         function startRealtimeData() {
+            const resume = new URLSearchParams(location.hash.slice(1));
+            clearViewFilters();
             stopRealtimeData();
             activeProject = '';
             document.getElementById('signed-out-view').classList.add('hidden');
@@ -591,6 +607,13 @@
             fbDb.collection('project_summaries').get().then(s => {
                 projectSummaries = s.docs.map(d=>({id:d.id,...d.data()}));
                 renderProjectOverview();
+                if(resume.get('view')==='project' && projectSummaries.some(p=>p.project===resume.get('project'))) {
+                    openProjectOverview(resume.get('project'));
+                    const tab=resume.get('tab');
+                    if(['records','stock','bom'].includes(tab)) switchTab(tab);
+                } else if(resume.get('view')==='dispatch' && ['LOAN','LOAN_RETURN','DELIVERY'].includes(resume.get('kind'))) {
+                    openDispatchPage(resume.get('kind'));
+                } else rememberCurrentView('home');
             }).catch(showError);
             stopSummaryMetaListener = fbDb.collection('app_meta').doc('inventory_summary_v1').onSnapshot(s => {
                 summaryReady = !!(s.exists && s.data().ready === true);
@@ -920,6 +943,7 @@
         }
 
         function showProjectHome() {
+            rememberCurrentView('home');
             if (!fbAuth?.currentUser) { renderSignedOut(); return; }
             clearRecordSearch();
             stopProjectDataListeners();
@@ -1414,6 +1438,7 @@
         }
 
         function switchTab(tab) {
+            if(activeProject && ['records','stock','bom'].includes(tab)) rememberCurrentView('project',activeProject,tab);
             if (tab !== 'records' && document.getElementById('filter-search').value.trim()) {
                 clearRecordSearch();
                 applyFilters();
@@ -1957,6 +1982,7 @@
         }
         function openDispatchPage(kind) {
             if (!['LOAN','LOAN_RETURN','DELIVERY'].includes(kind)) return;
+            rememberCurrentView('dispatch','','records',kind);
             document.getElementById('loan-kind-label').classList.toggle('hidden',kind === 'DELIVERY');
             if (kind !== 'DELIVERY') document.getElementById('loan-kind-select').value=kind;
             if (!currentUser) return;
