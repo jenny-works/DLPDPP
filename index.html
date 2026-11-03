@@ -370,7 +370,7 @@
                     <select id="filter-bom-project" onchange="renderBomTable()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
                         <option value="ALL">全部專案</option>
                     </select>
-                    <select id="filter-bom-shortage" onchange="renderBomTable()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                    <select id="filter-bom-category" onchange="renderBomTable()" class="rounded-lg border px-3 py-2 text-sm"><option value="ALL">全部物料類別</option><option value="零組件">零組件</option><option value="包材">包材</option><option value="輔材">輔材</option><option value="五金">五金</option></select><select id="filter-bom-shortage" onchange="renderBomTable()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
                         <option value="ALL">全部狀態</option>
                         <option value="SHORTAGE_ONLY">僅顯示缺料項目</option>
                         <option value="FULFILLED_ONLY">僅顯示齊料項目</option>
@@ -410,7 +410,7 @@
                                 <th class="p-4 w-10 text-center">
                                     <input type="checkbox" id="select-all-bom" onclick="toggleSelectAllBom(this)" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                                 </th>
-                                <th class="p-4">專案名稱</th>
+                                <th class="p-4">專案名稱</th><th class="p-4">物料類別</th>
                                 <th class="p-4">料號</th>
                                 <th class="p-4">品名</th>
                                 <th class="p-4 text-right">單機 BOM 用量</th>
@@ -447,7 +447,7 @@
                 </button>
             </div>
             <form id="bom-form" onsubmit="handleBomFormSubmit(event)" class="p-6 space-y-4">
-                <input type="hidden" id="bom-edit-id">
+                <input type="hidden" id="bom-edit-id"><label class="block text-sm">物料類別<select id="bom-category" class="mt-1 w-full rounded-lg border px-3 py-2"><option value="零組件">零組件</option><option value="包材">包材</option><option value="輔材">輔材</option><option value="五金">五金</option></select></label>
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">專案名稱 *</label>
                     <input type="text" id="bom-project" required class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
@@ -1050,7 +1050,7 @@
         function requireSignedIn(write=false, admin=false) { if(!fbAuth?.currentUser) throw new Error('請先使用 Google 帳號登入。'); if(write&&!['admin','editor'].includes(currentUser?.user?.role)) throw new Error('目前帳號只有檢視權限。'); if(admin&&currentUser?.user?.role!=='admin') throw new Error('此操作僅限管理員。'); }
         function requireSummaryReady() { if (!summaryReady) throw new Error('請先由管理員按「建立統計索引」完成初始化，再新增或匯入明細。'); }
         function cleanRecord(x) { const legacyUrl=String(x.attachment_url||''); const r={date:String(x.date||x.movement_date||'').trim(),type:String(x.type||'').toUpperCase(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),quantity:Number(x.quantity),project:String(x.project||'').trim(),counterparty:String(x.counterparty||'').trim(),reference_no:String(x.reference_no||'').trim(),remark:String(x.remark||'').trim(),attachment_id:x.attachment_id||null,attachment_name:String(x.attachment_name||''),attachment_data_url:String(x.attachment_data_url||(legacyUrl.startsWith('data:')?legacyUrl:'')),created_by:fbAuth.currentUser.email||'',updated_by:fbAuth.currentUser.email||''}; const parsedDate=new Date(`${r.date}T00:00:00Z`),safeAttachment=!r.attachment_data_url||/^data:(image\/(png|jpeg|gif|webp)|application\/(pdf|octet-stream|vnd\.ms-excel)|text\/(plain|csv)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet);base64,/i.test(r.attachment_data_url); if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date)||Number.isNaN(parsedDate.getTime())||parsedDate.toISOString().slice(0,10)!==r.date||!['IN','OUT','ISSUE','SUPPLIER_RETURN','ADJUSTMENT'].includes(r.type)||!r.item_no||r.item_no.length>100||!r.item_name||r.item_name.length>200||!Number.isFinite(r.quantity)||r.quantity<=0||r.quantity>1e12||r.project.length>100||r.counterparty.length>200||r.reference_no.length>100||r.remark.length>2000||r.attachment_data_url.length>950000||r.attachment_name.length>255||!safeAttachment)throw new Error('明細欄位不正確，請檢查日期、異動類型、料號、品名、正數數量及附件格式。'); return r; }
-        function cleanBom(x) { const b={project:String(x.project||'').trim(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),required_qty:Number(x.required_qty),remark:String(x.remark||'').trim(),updated_by:fbAuth.currentUser.email||''}; if(b.project.length>100||!b.item_no||b.item_no.length>100||!b.item_name||b.item_name.length>200||!Number.isFinite(b.required_qty)||b.required_qty<=0||b.remark.length>2000)throw new Error('BOM 欄位不正確，請檢查專案、料號、品名及正數用量。'); return b; }
+        function cleanBom(x) { const b={category:String(x.category||'零組件').trim(),project:String(x.project||'').trim(),item_no:String(x.item_no||'').trim(),item_name:String(x.item_name||'').trim(),required_qty:Number(x.required_qty),remark:String(x.remark||'').trim(),updated_by:fbAuth.currentUser.email||''}; if(!['零組件','包材','輔材','五金'].includes(b.category)||b.project.length>100||!b.item_no||b.item_no.length>100||!b.item_name||b.item_name.length>200||!Number.isFinite(b.required_qty)||b.required_qty<=0||b.remark.length>2000)throw new Error('BOM 欄位不正確，請檢查專案、料號、品名及正數用量。'); return b; }
         async function getAllQueryDocs(query, pageSize=1000) { const docs=[]; let cursor=null; while(true) { let page=query.limit(pageSize); if(cursor) page=page.startAfter(cursor); const snapshot=await page.get(); docs.push(...snapshot.docs); if(snapshot.size<pageSize) return docs; cursor=snapshot.docs[snapshot.docs.length-1]; } }
         async function audit(action, type, id, detail={}) { const uid=fbAuth.currentUser.uid; const safe={...detail}; delete safe.attachment_data_url; delete safe.attachment_url; await fbDb.collection('audit_log').add({actor_email:fbAuth.currentUser.email||'',actor_uid:uid,action,entity_type:type,entity_id:String(id),detail:safe,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); }
         async function api(path, options={}) {
@@ -1199,7 +1199,7 @@
                 return;
             }
 
-            let csv = `專案名稱,料號,品名,單機BOM用量,目標整機台數,目標總需求量,專案可用庫存,缺料數量,齊料狀態,備註\n`;
+            let csv = `專案名稱,物料類別,料號,品名,單機BOM用量,目標整機台數,目標總需求量,專案可用庫存,缺料數量,齊料狀態,備註\n`;
             targetBoms.forEach(item => {
                 const itemProj = (item.project || '').trim();
                 const key = `${itemProj}__${(item.item_no || '').trim()}`;
@@ -1209,7 +1209,7 @@
                 const status = shortage <= 0 ? "齊料" : "缺料";
                 const remark = (item.remark || '').replace(/"/g, '""');
 
-                csv += `"${item.project}","${item.item_no}","${item.item_name}",${item.required_qty},${buildTargetQty},${totalTargetDemand},${availableQty},${shortage > 0 ? shortage : 0},"${status}","${remark}"\n`;
+                csv += `"${item.project}","${item.category || '零組件'}","${item.item_no}","${item.item_name}",${item.required_qty},${buildTargetQty},${totalTargetDemand},${availableQty},${shortage > 0 ? shortage : 0},"${status}","${remark}"\n`;
             });
 
             downloadCSV(csv, "BOM_Assembly_Reconciliation_組裝齊料匯出.csv");
@@ -1225,6 +1225,7 @@
 
         function openBomModal(id = null) {
             document.getElementById('bom-edit-id').value = '';
+            document.getElementById('bom-category').value = '零組件';
             document.getElementById('bom-project').value = '';
             document.getElementById('bom-item-no').value = '';
             document.getElementById('bom-item-name').value = '';
@@ -1236,6 +1237,7 @@
                 if (item) {
                     document.getElementById('modal-bom-title').textContent = "編輯 BOM 需求項目";
                     document.getElementById('bom-edit-id').value = item.id;
+                    document.getElementById('bom-category').value = item.category || '零組件';
                     document.getElementById('bom-project').value = item.project || '';
                     document.getElementById('bom-item-no').value = item.item_no || '';
                     document.getElementById('bom-item-name').value = item.item_name || '';
@@ -1258,7 +1260,7 @@
             const btn = document.getElementById('btn-save-bom'); btn.disabled = true;
             try {
                 const editId = document.getElementById('bom-edit-id').value;
-                const payload = { project:document.getElementById('bom-project').value.trim(), item_no:document.getElementById('bom-item-no').value.trim(), item_name:document.getElementById('bom-item-name').value.trim(), required_qty:Number(document.getElementById('bom-required-qty').value), remark:document.getElementById('bom-remark').value.trim() };
+                const payload = { category:document.getElementById('bom-category').value, project:document.getElementById('bom-project').value.trim(), item_no:document.getElementById('bom-item-no').value.trim(), item_name:document.getElementById('bom-item-name').value.trim(), required_qty:Number(document.getElementById('bom-required-qty').value), remark:document.getElementById('bom-remark').value.trim() };
                 if (editId) await api(`/api/bom/${encodeURIComponent(editId)}`, {method:'PUT',body:payload});
                 else await api('/api/bom', {method:'POST',body:payload});
                 closeBomModal(); showToast('BOM 資料已儲存並同步。');
@@ -1368,7 +1370,7 @@
             Papa.parse(file, {header:true,skipEmptyLines:true,encoding:'UTF-8',complete:async ({data,errors})=>{
                 try {
                     if (errors.length) throw new Error(`CSV 有 ${errors.length} 個格式問題，請檢查檔案。`);
-                    const sourceRows=data.map((row,index)=>({csvRow:index+2,project:String(row['專案名稱']||row['專案']||'').trim(),item_no:String(row['料號']||'').trim(),item_name:String(row['品名']||'').trim(),required_qty:Number(row['單機BOM用量']??row['BOM需求量']??row['需求量']),remark:String(row['備註']||'').trim()}));
+                    const sourceRows=data.map((row,index)=>({csvRow:index+2,category:String(row['物料類別']||row['類別']||'零組件').trim(),project:String(row['專案名稱']||row['專案']||activeProject||'').trim(),item_no:String(row['料號']||'').trim(),item_name:String(row['品名']||'').trim(),required_qty:Number(row['單機BOM用量']??row['BOM需求量']??row['需求量']),remark:String(row['備註']||'').trim()}));
                     if(!sourceRows.length) throw new Error('CSV 沒有可匯入的資料列。');
                     const missing=sourceRows.filter(x=>!x.item_no||!x.item_name);
                     if(missing.length) throw new Error(`有 ${missing.length} 列缺少料號或品名（CSV 第 ${missing.slice(0,12).map(x=>x.csvRow).join('、')} 列${missing.length>12?'等':''}）。已取消匯入，請補齊後再試。`);
@@ -1376,9 +1378,9 @@
                     if(invalidQty.length) throw new Error(`有 ${invalidQty.length} 列的單機 BOM 用量不是大於 0 的數字（CSV 第 ${invalidQty.slice(0,12).map(x=>x.csvRow).join('、')} 列${invalidQty.length>12?'等':''}）。已取消匯入，請修正後再試。`);
                     const grouped=new Map(),nameConflicts=[],projectConflicts=[];
                     sourceRows.forEach(row=>{
-                        const key=row.item_no;
+                        const key=JSON.stringify([row.project,row.item_no]);
                         const current=grouped.get(key);
-                        if(!current){grouped.set(key,{project:row.project,item_no:row.item_no,item_name:row.item_name,required_qty:row.required_qty,remark:row.remark,_source_rows:[row.csvRow],_names:[row.item_name]});return;}
+                        if(!current){grouped.set(key,{category:row.category,project:row.project,item_no:row.item_no,item_name:row.item_name,required_qty:row.required_qty,remark:row.remark,_source_rows:[row.csvRow],_names:[row.item_name]});return;}
                         current.required_qty+=row.required_qty;
                         current._source_rows.push(row.csvRow);
                         if(!current._names.includes(row.item_name)) current._names.push(row.item_name);
@@ -1395,7 +1397,7 @@
         }
 
         function downloadBomTemplate() {
-            const csvContent = "專案名稱,料號,品名,單機BOM用量,備註\n";
+            const csvContent = "專案名稱,物料類別,料號,品名,單機BOM用量,備註\n";
             const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
@@ -1829,6 +1831,7 @@
 
             let totalShortageItems = 0;
 
+            const categoryFilter=document.getElementById('filter-bom-category').value;
             const list = bomList.filter(item => {
                 const itemProj = (item.project || '').trim();
                 const matchProject = projectFilter === 'ALL' || itemProj === projectFilter;
@@ -1848,7 +1851,7 @@
                     (shortageFilter === 'SHORTAGE_ONLY' && shortage > 0) ||
                     (shortageFilter === 'FULFILLED_ONLY' && shortage === 0);
 
-                return matchProject && matchSearch && matchShortage;
+                return matchProject && matchSearch && matchShortage && (categoryFilter==='ALL' || (item.category || '零組件')===categoryFilter);
             });
 
             list.forEach(item => {
@@ -1883,7 +1886,7 @@
                     <td class="p-4 text-center">
                         <input type="checkbox" value="${escapeHtml(item.id)}" class="bom-checkbox rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
                     </td>
-                    <td class="p-4 font-medium text-slate-800"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${escapeHtml(item.project || '通用')}</span></td>
+                    <td class="p-4 font-medium text-slate-800"><span class="px-2 py-1 bg-slate-100 rounded text-xs">${escapeHtml(item.project || '通用')}</span></td><td class="p-4">${escapeHtml(item.category || '零組件')}</td>
                     <td class="p-4 font-mono font-medium text-slate-800">${escapeHtml(item.item_no)}</td>
                     <td class="p-4 font-medium text-slate-900">${escapeHtml(item.item_name)}</td>
                     <td class="p-4 text-right font-semibold text-slate-600">${Number(item.required_qty).toLocaleString()}</td>
