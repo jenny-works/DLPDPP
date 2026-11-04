@@ -197,7 +197,7 @@
         </div>
 
         <!-- 頁籤選單 -->
-        <div class="border-b border-slate-200 flex space-x-4">
+        <div class="border-b border-slate-200 flex flex-wrap gap-x-5 gap-y-3">
             <button id="tab-records-btn" onclick="switchTab('records')" class="pb-3 px-1 border-b-2 border-indigo-600 text-indigo-600 font-bold text-sm flex items-center space-x-2">
                 <i data-lucide="file-text" class="w-4 h-4"></i>
                 <span>明細紀錄列表</span>
@@ -210,6 +210,7 @@
                 <i data-lucide="clipboard-check" class="w-4 h-4"></i>
                         <span>缺料明細</span>
             </button>
+            <button id="tab-procurement-btn" onclick="switchTab('procurement')" class="pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center space-x-2"><i data-lucide="calendar-clock" class="w-4 h-4"></i><span>採購進度排程</span></button>
         </div>
 
         <!-- 分頁 1: 明細紀錄列表 -->
@@ -443,6 +444,49 @@
                 </div>
             </div>
         </div>
+        <div id="tab-procurement-view" class="hidden space-y-4">
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div><h3 class="text-lg font-bold text-slate-800">採購進度排程</h3><p class="mt-1 text-sm text-slate-500">記錄採購與到貨進度；實際入庫請至明細紀錄新增。</p></div>
+                    <div class="flex flex-wrap gap-2"><button type="button" onclick="loadProcurementSchedule(true)" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">重新整理</button><button type="button" onclick="openProcurementEditor()" class="admin-only hidden rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">新增採購排程</button></div>
+                </div>
+                <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div class="rounded-xl bg-slate-50 p-3"><p class="text-xs text-slate-500">採購項目</p><p id="procurement-total" class="mt-1 text-xl font-bold">0</p></div>
+                    <div class="rounded-xl bg-blue-50 p-3"><p class="text-xs text-blue-700">未完成</p><p id="procurement-pending" class="mt-1 text-xl font-bold text-blue-700">0</p></div>
+                    <div class="rounded-xl bg-rose-50 p-3"><p class="text-xs text-rose-700">逾期未到貨</p><p id="procurement-overdue" class="mt-1 text-xl font-bold text-rose-700">0</p></div>
+                    <div class="rounded-xl bg-emerald-50 p-3"><p class="text-xs text-emerald-700">已到貨</p><p id="procurement-arrived" class="mt-1 text-xl font-bold text-emerald-700">0</p></div>
+                </div>
+            </div>
+            <div id="procurement-editor" class="hidden rounded-xl border border-indigo-200 bg-white p-5 shadow-sm">
+                <h4 id="procurement-editor-title" class="font-bold text-indigo-700">新增採購排程</h4>
+                <form id="procurement-form" onsubmit="saveProcurementSchedule(event)" class="mt-4 space-y-4">
+                    <input id="procurement-id" type="hidden"><input id="procurement-revision" type="hidden" value="0">
+                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        <label class="block text-sm text-slate-600">料號 *<input id="procurement-item_no" required maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                        <label class="block text-sm text-slate-600">品名 *<input id="procurement-item_name" required maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                        <label class="block text-sm text-slate-600">物料類別<select id="procurement-category" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>零組件</option><option>包材</option><option>輔材</option><option>五金</option></select></label>
+                        <label class="block text-sm text-slate-600">供應商<input id="procurement-supplier" maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                        <label class="block text-sm text-slate-600">採購單號<input id="procurement-purchase_no" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                        <label class="block text-sm text-slate-600">採購數量 *<input id="procurement-quantity" type="number" required min="0.000001" max="1000000000000" step="any" value="1" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                        <label class="block text-sm text-slate-600">預計下單日<input id="procurement-planned_order_date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                        <label class="block text-sm text-slate-600">預計到貨日<input id="procurement-expected_arrival_date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                        <label class="block text-sm text-slate-600">實際到貨日<input id="procurement-actual_arrival_date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                        <label class="block text-sm text-slate-600">採購進度<select id="procurement-status" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>未下單</option><option>已下單</option><option>部分到貨</option><option>已到貨</option><option>暫停</option></select></label>
+                        <label class="block text-sm text-slate-600 sm:col-span-2">備註<textarea id="procurement-remark" maxlength="2000" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></textarea></label>
+                    </div>
+                    <div class="flex gap-3"><button id="procurement-save" type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">儲存排程</button><button type="button" onclick="closeProcurementEditor()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">取消</button></div>
+                </form>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex flex-wrap items-center gap-3">
+                    <label class="min-w-[16rem] flex-1"><span class="sr-only">查詢採購排程</span><input id="procurement-search" type="search" oninput="renderProcurementSchedule()" placeholder="搜尋料號、品名、供應商、單號或備註" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label>
+                    <select id="procurement-status-filter" aria-label="採購進度篩選" onchange="renderProcurementSchedule()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="ALL">全部進度</option><option>未下單</option><option>已下單</option><option>部分到貨</option><option>已到貨</option><option>暫停</option><option value="OVERDUE">逾期未到貨</option></select>
+                </div>
+                <p id="procurement-load-status" role="status" class="my-4 text-sm text-slate-500">開啟頁籤後載入排程。</p>
+                <div class="overflow-x-auto"><table class="w-full text-left text-sm" style="min-width:1280px"><thead><tr class="border-b bg-slate-50 text-slate-600"><th class="p-3">類別</th><th class="p-3">料號／品名</th><th class="p-3">供應商／採購單號</th><th class="p-3 text-right">數量</th><th class="p-3">預計下單</th><th class="p-3">預計到貨</th><th class="p-3">實際到貨</th><th class="p-3">進度</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="procurement-table-body"></tbody></table></div>
+            </div>
+        </div>
+
         </section>
 
     </main>
@@ -588,6 +632,7 @@
             stopSummaryMetaListener = null;
         }
         function stopProjectDataListeners() {
+            resetProcurementState();
             [stopRecordsListener, stopBomListener, stopInventorySummaryListener, stopProjectSummaryListener].forEach(stop => { if (stop) stop(); });
             stopRecordsListener = stopBomListener = stopInventorySummaryListener = stopProjectSummaryListener = null;
         }
@@ -598,10 +643,10 @@
             history.replaceState(null,'',location.pathname+location.search+'#'+params.toString());
         }
         function clearViewFilters() {
-            for(const id of ['filter-home-project','filter-search','filter-stock-search','filter-bom-search','filter-date-start','filter-date-end','dispatch-search','dispatch-date-start','dispatch-date-end']) {
+            for(const id of ['filter-home-project','filter-search','filter-stock-search','filter-bom-search','filter-date-start','filter-date-end','dispatch-search','dispatch-date-start','dispatch-date-end','procurement-search']) {
                 const el=document.getElementById(id);if(el) el.value='';
             }
-            for(const id of ['filter-type','filter-bom-shortage','filter-bom-category']) {
+            for(const id of ['filter-type','filter-bom-shortage','filter-bom-category','procurement-status-filter']) {
                 const el=document.getElementById(id);if(el) el.value='ALL';
             }
         }
@@ -620,7 +665,7 @@
                 if(resume.get('view')==='project' && projectSummaries.some(p=>p.project===resume.get('project'))) {
                     openProjectOverview(resume.get('project'));
                     const tab=resume.get('tab');
-                    if(['records','stock','bom'].includes(tab)) switchTab(tab);
+                    if(['records','stock','bom','procurement'].includes(tab)) switchTab(tab);
                 } else if(resume.get('view')==='dispatch' && ['LOAN','LOAN_RETURN','DELIVERY'].includes(resume.get('kind'))) {
                     openDispatchPage(resume.get('kind'));
                 } else rememberCurrentView('home');
@@ -848,13 +893,14 @@
         }
 
         async function loadProjectDocuments(project) {
-            const [recordsForProject, bomForProject, inventoryForProject, summary] = await Promise.all([
+            const [recordsForProject, bomForProject, inventoryForProject, summary, procurementForProject] = await Promise.all([
                 getAllQueryDocs(fbDb.collection('records').where('project', '==', project), 400),
                 getAllQueryDocs(fbDb.collection('bom').where('project', '==', project), 400),
                 getAllQueryDocs(fbDb.collection('inventory_summary').where('project', '==', project), 400),
-                fbDb.collection('project_summaries').doc(projectSummaryId(project)).get()
+                fbDb.collection('project_summaries').doc(projectSummaryId(project)).get(),
+                getAllQueryDocs(fbDb.collection('procurement_schedules').where('project','==',project),400)
             ]);
-            return { records: recordsForProject, bom: bomForProject, inventory: inventoryForProject, summary };
+            return { records: recordsForProject, bom: bomForProject, inventory: inventoryForProject, summary, procurement:procurementForProject };
         }
 
         async function editProject(project) {
@@ -864,21 +910,23 @@
                 if (!nextName || nextName === project) return;
                 if (nextName.length > 100) throw new Error('專案名稱最多 100 個字元。');
                 const targetId = projectSummaryId(nextName);
-                const [targetSummary, targetRecords, targetBom, targetInventory] = await Promise.all([
+                const [targetSummary, targetRecords, targetBom, targetInventory, targetProcurement] = await Promise.all([
                     fbDb.collection('project_summaries').doc(targetId).get(),
                     fbDb.collection('records').where('project', '==', nextName).limit(1).get(),
                     fbDb.collection('bom').where('project', '==', nextName).limit(1).get(),
-                    fbDb.collection('inventory_summary').where('project', '==', nextName).limit(1).get()
+                    fbDb.collection('inventory_summary').where('project', '==', nextName).limit(1).get(),
+                    fbDb.collection('procurement_schedules').where('project','==',nextName).limit(1).get()
                 ]);
-                if (targetSummary.exists || !targetRecords.empty || !targetBom.empty || !targetInventory.empty) {
+                if (targetSummary.exists || !targetRecords.empty || !targetBom.empty || !targetInventory.empty || !targetProcurement.empty) {
                     throw new Error('已有同名專案資料，請選擇其他名稱。');
                 }
                 const data = await loadProjectDocuments(project);
                 const recCount = data.records.length, bomCount = data.bom.length;
-                if (!confirm(`將「${project}」改名為「${nextName}」，並同步更新 ${recCount} 筆明細、${bomCount} 筆 BOM 與 ${data.inventory.length} 筆庫存摘要。是否繼續？`)) return;
+                if (!confirm(`將「${project}」改名為「${nextName}」，並同步更新 ${recCount} 筆明細、${bomCount} 筆 BOM 與 ${data.inventory.length} 筆庫存摘要及 ${data.procurement.length} 筆採購排程。是否繼續？`)) return;
                 const operations = [];
                 data.records.forEach(d => operations.push({ kind: 'update', ref: d.ref, data: { project: nextName } }));
                 data.bom.forEach(d => operations.push({ kind: 'update', ref: d.ref, data: { project: nextName, updated_by: fbAuth.currentUser.email || '', updated_at: new Date().toISOString() } }));
+                data.procurement.forEach(d => operations.push({kind:'update',ref:d.ref,data:{project:nextName,revision:d.data().revision+1,updated_by:fbAuth.currentUser.uid,updated_at:new Date().toISOString()}}));
                 data.inventory.forEach(d => {
                     const value = d.data();
                     const targetRef = fbDb.collection('inventory_summary').doc(inventorySummaryId(nextName, value.item_no));
@@ -904,11 +952,12 @@
                 requireSignedIn(false, true);
                 const data = await loadProjectDocuments(project);
                 const recCount = data.records.length, bomCount = data.bom.length;
-                if (!confirm(`確定永久刪除專案「${project}」及其 ${recCount} 筆明細、${bomCount} 筆 BOM、${data.inventory.length} 筆庫存摘要嗎？此動作無法復原。`)) return;
+                if (!confirm(`確定永久刪除專案「${project}」及其 ${recCount} 筆明細、${bomCount} 筆 BOM、${data.inventory.length} 筆庫存摘要及 ${data.procurement.length} 筆採購排程嗎？此動作無法復原。`)) return;
                 const operations = [
                     ...data.records.map(d => ({ kind: 'delete', ref: d.ref })),
                     ...data.bom.map(d => ({ kind: 'delete', ref: d.ref })),
-                    ...data.inventory.map(d => ({ kind: 'delete', ref: d.ref }))
+                    ...data.inventory.map(d => ({ kind: 'delete', ref: d.ref })),
+                    ...data.procurement.map(d => ({kind:'delete',ref:d.ref}))
                 ];
                 if (data.summary.exists) operations.push({ kind: 'delete', ref: data.summary.ref });
                 await runProjectWriteOps(operations);
@@ -1105,8 +1154,8 @@
                 requireSignedIn(false,true);if(method==='GET'){const s=await fbDb.collection('users').get();return {users:s.docs.map(d=>({uid:d.id,...d.data()}))};}
                 if(method==='PUT'){const email=key.trim().toLowerCase();const roleValue=String(body?.role||'');if(!email.includes('@')||!['admin','editor','viewer'].includes(roleValue))throw new Error('請輸入有效電子郵件及 admin、editor 或 viewer 權限。');const s=await fbDb.collection('users').where('email','==',email).limit(1).get();if(s.empty)throw new Error('找不到此人員；請先請對方以 Google 帳號登入一次。');await s.docs[0].ref.update({role:roleValue,updated_at:new Date().toISOString()});await audit('set_role','user',s.docs[0].id,{email,role:roleValue});return {ok:true};}
             }
-            if(p[1]==='legacy-import'&&method==='POST'){requireSignedIn(true,true);requireSummaryReady();const rs=body.records||body.demo_records||[],bs=body.bomList||body.bom_records||[];if(!Array.isArray(rs)||!Array.isArray(bs)||rs.length>5000||bs.length>5000)throw new Error('備份資料格式錯誤或超過每類 5,000 筆限制。');let nr=0,nb=0;for(let i=0;i<rs.length;i+=80){const batch=fbDb.batch(),delta={inventory:new Map(),projects:new Map()};for(const raw of rs.slice(i,i+80)){const d=cleanRecord(raw),id=encodeURIComponent(String(raw.id||firebase.firestore().collection('_ids').doc().id)),ref=fbDb.collection('records').doc(id);const exists=await ref.get();if(!exists.exists){batch.set(ref,{...d,created_at:new Date().toISOString()});batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:new Date().toISOString()},{merge:true});addRecordSummaryDelta(delta,d,1);nr++;}}queueSummaryDeltas(batch,delta);await batch.commit();}for(const raw of bs){const b=cleanBom(raw),id=encodeURIComponent(`${b.project}__${b.item_no}`);await fbDb.collection('bom').doc(id).set({...b,updated_at:new Date().toISOString()},{merge:true});nb++;}return {records:nr,bomList:nb};}
-            if(p[1]==='backup'&&method==='GET'){requireSignedIn(false,true);const [rs,bs]=await Promise.all([fbDb.collection('records').get(),fbDb.collection('bom').get()]);return {app:'入出庫明細管理系統',schemaVersion:1,exportedAt:new Date().toISOString(),records:rs.docs.map(d=>({id:d.id,...d.data()})),bomList:bs.docs.map(d=>({id:d.id,...d.data()}))};}
+            if(p[1]==='legacy-import'&&method==='POST'){requireSignedIn(true,true);requireSummaryReady();const rs=body.records||body.demo_records||[],bs=body.bomList||body.bom_records||[];if(!Array.isArray(rs)||!Array.isArray(bs)||rs.length>5000||bs.length>5000)throw new Error('備份資料格式錯誤或超過每類 5,000 筆限制。');let nr=0,nb=0;for(let i=0;i<rs.length;i+=80){const batch=fbDb.batch(),delta={inventory:new Map(),projects:new Map()};for(const raw of rs.slice(i,i+80)){const d=cleanRecord(raw),id=encodeURIComponent(String(raw.id||firebase.firestore().collection('_ids').doc().id)),ref=fbDb.collection('records').doc(id);const exists=await ref.get();if(!exists.exists){batch.set(ref,{...d,created_at:new Date().toISOString()});batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:new Date().toISOString()},{merge:true});addRecordSummaryDelta(delta,d,1);nr++;}}queueSummaryDeltas(batch,delta);await batch.commit();}for(const raw of bs){const b=cleanBom(raw),id=encodeURIComponent(`${b.project}__${b.item_no}`);await fbDb.collection('bom').doc(id).set({...b,updated_at:new Date().toISOString()},{merge:true});nb++;}const np=await restoreProcurementSchedules(body.procurementSchedules||[]);return {records:nr,bomList:nb,procurementSchedules:np};}
+            if(p[1]==='backup'&&method==='GET'){requireSignedIn(false,true);const [rs,bs,ps]=await Promise.all([fbDb.collection('records').get(),fbDb.collection('bom').get(),fbDb.collection('procurement_schedules').get()]);return {app:'入出庫明細管理系統',schemaVersion:2,exportedAt:new Date().toISOString(),records:rs.docs.map(d=>({id:d.id,...d.data()})),bomList:bs.docs.map(d=>({id:d.id,...d.data()})),procurementSchedules:ps.docs.map(d=>({id:d.id,...d.data()}))};}
             if(p[1]==='attachments'){
                 if(method==='POST'){requireSignedIn(true);const file=body?.get('file');if(!file)throw new Error('請選擇附件');if(file.size>650*1024)throw new Error('為符合 Firestore 免費版單筆資料上限，附件請小於 650 KB。');const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('讀取附件失敗'));reader.readAsDataURL(file);});return {id:crypto.randomUUID(),name:file.name,url:dataUrl,data_url:dataUrl};}
                 if(method==='GET'){const d=await fbDb.collection('records').doc(key).get();if(!d.exists||!d.data().attachment_data_url)throw new Error('找不到附件');return {url:d.data().attachment_data_url};}
@@ -1123,7 +1172,7 @@
             try{await api(`/api/users/${encodeURIComponent(email)}`,{method:'PUT',body:{role:role.trim()}});showToast(`已更新 ${email} 的權限。`);}catch(e){showError(e);}
         }
         async function exportCloudBackup(){try{const backup=await api('/api/backup');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`庫存雲端備份_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}catch(e){showError(e);}}
-        async function importLegacyFile(event){const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const result=await api('/api/legacy-import',{method:'POST',body:data});alert(`匯入完成：${result.records} 筆異動、${result.bomList} 筆 BOM。`);}catch(e){showError(e);}finally{event.target.value='';}}
+        async function importLegacyFile(event){const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const result=await api('/api/legacy-import',{method:'POST',body:data});alert(`匯入完成：${result.records} 筆異動、${result.bomList} 筆 BOM、${result.procurementSchedules || 0} 筆採購排程。`);}catch(e){showError(e);}finally{event.target.value='';}}
 
         function normalizeMovementType(value) {
             const type = String(value || '').trim().toUpperCase();
@@ -1448,7 +1497,7 @@
         }
 
         function switchTab(tab) {
-            if(activeProject && ['records','stock','bom'].includes(tab)) rememberCurrentView('project',activeProject,tab);
+            if(activeProject && ['records','stock','bom','procurement'].includes(tab)) rememberCurrentView('project',activeProject,tab);
             if (tab !== 'records' && document.getElementById('filter-search').value.trim()) {
                 clearRecordSearch();
                 applyFilters();
@@ -1456,12 +1505,14 @@
             const views = {
                 records: document.getElementById('tab-records-view'),
                 stock: document.getElementById('tab-stock-view'),
-                bom: document.getElementById('tab-bom-view')
+                bom: document.getElementById('tab-bom-view'),
+                procurement: document.getElementById('tab-procurement-view')
             };
             const btns = {
                 records: document.getElementById('tab-records-btn'),
                 stock: document.getElementById('tab-stock-btn'),
-                bom: document.getElementById('tab-bom-btn')
+                bom: document.getElementById('tab-bom-btn'),
+                procurement: document.getElementById('tab-procurement-btn')
             };
 
             Object.keys(views).forEach(k => {
@@ -1478,6 +1529,7 @@
             if (tab === 'bom') ensureBomListener();
             if (tab === 'stock') renderStockTable();
             if (tab === 'bom') renderBomTable();
+            if (tab === 'procurement') loadProcurementSchedule();
         }
 
         function addItemRow(data = null) {
@@ -2247,6 +2299,159 @@
                 else await saveChunkedDispatch(data,id || null);
                 resetDispatchForm(); await loadDispatchDocuments(true); showToast('整張單據已儲存。');
             } catch(error) {showError(new Error(`單據儲存失敗（${document.querySelectorAll('#dispatch-item-rows tr').length} 項）：${error.message || error}`));} finally {button.disabled=false;}
+        }
+
+        const PROCUREMENT_STATUSES = ['未下單','已下單','部分到貨','已到貨','暫停'];
+        const PROCUREMENT_FIELDS = ['item_no','item_name','category','supplier','purchase_no','quantity','planned_order_date','expected_arrival_date','actual_arrival_date','status','remark'];
+        let procurementRows = [], procurementLoadedProject = '', procurementRequest = 0, procurementLoading = false, procurementSaving = false, procurementEditorProject = '';
+        function procurementToday() {
+            const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+            return ['year','month','day'].map(k=>parts.find(p=>p.type===k).value).join('-');
+        }
+        function procurementIsOverdue(row,today=procurementToday()) {
+            return !!row.expected_arrival_date && row.expected_arrival_date < today && !['已到貨','暫停'].includes(row.status);
+        }
+        function validateProcurementSchedule(raw, project) {
+            const data = {project:String(project || '').trim()};
+            for(const key of PROCUREMENT_FIELDS) data[key] = key==='quantity' ? Number(raw[key]) : String(raw[key] ?? '').trim();
+            if(!data.project || data.project.length>100) throw new Error('請先選擇有效專案。');
+            if(!data.item_no || data.item_no.length>100 || !data.item_name || data.item_name.length>200) throw new Error('請填入料號（最多 100 字）與品名（最多 200 字）。');
+            if(!['零組件','包材','輔材','五金'].includes(data.category) || !PROCUREMENT_STATUSES.includes(data.status)) throw new Error('請選擇物料類別與採購進度。');
+            if(!Number.isFinite(data.quantity) || data.quantity<=0 || data.quantity>1e12) throw new Error('採購數量須大於 0，且不可超過 1 兆。');
+            if(data.supplier.length>200 || data.purchase_no.length>100 || data.remark.length>2000) throw new Error('供應商最多 200 字、採購單號最多 100 字、備註最多 2000 字。');
+            for(const key of ['planned_order_date','expected_arrival_date','actual_arrival_date']) {
+                if(!data[key]) continue;
+                const date=new Date(data[key]+'T00:00:00Z');
+                if(!/^\d{4}-\d{2}-\d{2}$/.test(data[key]) || Number.isNaN(date.getTime()) || date.toISOString().slice(0,10)!==data[key]) throw new Error('排程日期格式不正確。');
+            }
+            if(data.planned_order_date && data.expected_arrival_date && data.expected_arrival_date<data.planned_order_date) throw new Error('預計到貨日不可早於預計下單日。');
+            return data;
+        }
+        function resetProcurementState() {
+            procurementRequest++; procurementRows=[]; procurementLoadedProject=''; procurementLoading=false;
+            const search=document.getElementById('procurement-search');if(search) search.value='';
+            const filter=document.getElementById('procurement-status-filter');if(filter) filter.value='ALL';
+            closeProcurementEditor();
+            const body=document.getElementById('procurement-table-body');if(body) body.innerHTML='';
+        }
+        function closeProcurementEditor() {
+            document.getElementById('procurement-editor')?.classList.add('hidden');
+            procurementEditorProject='';
+        }
+        function openProcurementEditor(id='') {
+            try {
+                requireSignedIn(true);
+                if(procurementSaving) throw new Error('正在儲存，請稍候。');
+                if(!activeProject) throw new Error('請先選擇專案。');
+                const row=id ? procurementRows.find(r=>r.id===id && !r.deleted) : null;
+                if(id && !row) throw new Error('找不到排程，請重新整理。');
+                document.getElementById('procurement-form').reset();
+                document.getElementById('procurement-id').value=row?.id || '';
+                document.getElementById('procurement-revision').value=row?.revision || 0;
+                if(row) for(const key of PROCUREMENT_FIELDS) document.getElementById('procurement-'+key).value=row[key] ?? '';
+                procurementEditorProject=activeProject;
+                document.getElementById('procurement-editor-title').textContent=(row?'編輯':'新增')+'採購排程 · '+activeProject;
+                const editor=document.getElementById('procurement-editor');editor.classList.remove('hidden');editor.scrollIntoView({behavior:'smooth',block:'start'});
+            } catch(error) {showError(error);}
+        }
+        async function loadProcurementSchedule(force=false) {
+            if(!fbAuth?.currentUser || !activeProject) return;
+            if(!force && procurementLoadedProject===activeProject) {renderProcurementSchedule();return;}
+            if(procurementLoading && !force) return;
+            const project=activeProject, request=++procurementRequest;
+            procurementLoading=true;
+            procurementRows=[];procurementLoadedProject='';
+            renderProcurementSchedule();
+            try {
+                const docs=await getAllQueryDocs(fbDb.collection('procurement_schedules').where('project','==',project),400);
+                if(request!==procurementRequest || activeProject!==project || !fbAuth.currentUser) return;
+                procurementRows=docs.map(d=>({...d.data(),id:d.id})).filter(r=>!r.deleted);
+                procurementLoadedProject=project;procurementLoading=false;renderProcurementSchedule();
+            } catch(error) {
+                if(request!==procurementRequest) return;
+                procurementLoading=false;
+                const status=document.getElementById('procurement-load-status');
+                status.textContent=error.code==='permission-denied' ? '無法讀取採購排程，請確認帳號權限與最新版 Firestore 規則已發布。' : '採購排程載入失敗，請按重新整理再試。';
+                document.getElementById('procurement-table-body').innerHTML='';
+            } finally {if(request===procurementRequest) procurementLoading=false;}
+        }
+        function renderProcurementSchedule() {
+            const today=procurementToday();
+            const rows=procurementRows.filter(r=>!r.deleted && r.project===activeProject);
+            document.getElementById('procurement-total').textContent=rows.length;
+            document.getElementById('procurement-pending').textContent=rows.filter(r=>!['已到貨','暫停'].includes(r.status)).length;
+            document.getElementById('procurement-overdue').textContent=rows.filter(r=>procurementIsOverdue(r,today)).length;
+            document.getElementById('procurement-arrived').textContent=rows.filter(r=>r.status==='已到貨').length;
+            const search=document.getElementById('procurement-search').value.trim().toLowerCase();
+            const filter=document.getElementById('procurement-status-filter').value;
+            const visible=rows.filter(r=>(!search || [r.item_no,r.item_name,r.supplier,r.purchase_no,r.remark,r.category].some(v=>String(v || '').toLowerCase().includes(search))) && (filter==='ALL' || (filter==='OVERDUE' ? procurementIsOverdue(r,today) : r.status===filter)));
+            visible.sort((a,b)=>(a.expected_arrival_date || a.planned_order_date || '9999').localeCompare(b.expected_arrival_date || b.planned_order_date || '9999') || a.item_no.localeCompare(b.item_no));
+            document.getElementById('procurement-load-status').textContent=procurementLoading ? '正在載入採購排程…' : procurementLoadedProject===activeProject ? `${activeProject} · 共 ${rows.length} 筆，符合 ${visible.length} 筆；依預計到貨日排序` : '開啟頁籤後載入排程。';
+            document.getElementById('procurement-table-body').innerHTML=visible.map(r=>{
+                const overdue=procurementIsOverdue(r,today);
+                const style=r.status==='已到貨'?'bg-emerald-50 text-emerald-700':overdue?'bg-rose-50 text-rose-700':r.status==='暫停'?'bg-slate-100 text-slate-600':'bg-indigo-50 text-indigo-700';
+                return `<tr class="border-b align-top hover:bg-slate-50"><td class="p-3">${escapeHtml(r.category)}</td><td class="p-3"><strong>${escapeHtml(r.item_no)}</strong><div class="mt-1 max-w-xs whitespace-normal text-slate-500">${escapeHtml(r.item_name)}</div></td><td class="p-3">${escapeHtml(r.supplier || '—')}<div class="mt-1 text-xs text-slate-500">${escapeHtml(r.purchase_no || '')}</div></td><td class="p-3 text-right">${Number(r.quantity).toLocaleString()}</td><td class="p-3 whitespace-nowrap">${escapeHtml(r.planned_order_date || '—')}</td><td class="p-3 whitespace-nowrap ${overdue?'text-rose-600':''}">${escapeHtml(r.expected_arrival_date || '—')}${overdue?'<div class="mt-1 text-xs">逾期未到貨</div>':''}</td><td class="p-3 whitespace-nowrap">${escapeHtml(r.actual_arrival_date || '—')}</td><td class="p-3"><span class="whitespace-nowrap rounded-full px-2 py-1 text-xs ${style}">${escapeHtml(r.status)}</span></td><td class="p-3 max-w-xs whitespace-pre-wrap break-words">${escapeHtml(r.remark || '—')}</td><td class="p-3">${isAdminMode?`<div class="flex gap-2"><button type="button" data-id="${escapeHtml(r.id)}" onclick="openProcurementEditor(this.dataset.id)" class="text-indigo-600">編輯</button><button type="button" data-id="${escapeHtml(r.id)}" onclick="deleteProcurementSchedule(this.dataset.id)" class="text-rose-600">刪除</button></div>`:'唯讀'}</td></tr>`;
+            }).join('');
+        }
+        async function saveProcurementSchedule(event) {
+            event.preventDefault();if(procurementSaving) return;
+            const button=document.getElementById('procurement-save');
+            procurementSaving=true;button.disabled=true;
+            try {
+                requireSignedIn(true);
+                const project=procurementEditorProject;
+                if(!project || project!==activeProject) throw new Error('專案已切換，請重新開啟排程表單。');
+                const raw={};for(const key of PROCUREMENT_FIELDS) raw[key]=document.getElementById('procurement-'+key).value;
+                const data=validateProcurementSchedule(raw,project);
+                const id=document.getElementById('procurement-id').value,revision=Number(document.getElementById('procurement-revision').value);
+                const now=new Date().toISOString(),uid=fbAuth.currentUser.uid;
+                const ref=id ? fbDb.collection('procurement_schedules').doc(id) : fbDb.collection('procurement_schedules').doc();
+                if(id) await fbDb.runTransaction(async tx=>{
+                    const snapshot=await tx.get(ref);
+                    if(!snapshot.exists || snapshot.data().deleted || snapshot.data().project!==project) throw new Error('排程已刪除或移至其他專案，請重新整理。');
+                    if(snapshot.data().revision!==revision) throw new Error('其他人已更新這筆排程，請重新整理後再編輯。');
+                    tx.update(ref,{...data,revision:revision+1,updated_by:uid,updated_at:now});
+                });
+                else await ref.set({...data,revision:1,deleted:false,created_by:uid,created_at:now,updated_by:uid,updated_at:now});
+                if(activeProject===project) {closeProcurementEditor();await loadProcurementSchedule(true);}
+                showToast('採購排程已儲存。');
+            } catch(error) {showError(error);} finally {procurementSaving=false;button.disabled=false;}
+        }
+        async function deleteProcurementSchedule(id) {
+            try {
+                requireSignedIn(true);
+                const project=activeProject,row=procurementRows.find(r=>r.id===id);
+                if(!row || row.project!==project) throw new Error('找不到排程，請重新整理。');
+                if(!confirm(`確定刪除「${row.item_no} ${row.item_name}」的採購排程？`)) return;
+                const ref=fbDb.collection('procurement_schedules').doc(id);
+                await fbDb.runTransaction(async tx=>{
+                    const snapshot=await tx.get(ref);
+                    if(!snapshot.exists || snapshot.data().deleted) throw new Error('排程已刪除，請重新整理。');
+                    if(snapshot.data().revision!==row.revision || snapshot.data().project!==project) throw new Error('排程已被更新，請重新整理後再操作。');
+                    tx.update(ref,{deleted:true,revision:row.revision+1,updated_by:fbAuth.currentUser.uid,updated_at:new Date().toISOString()});
+                });
+                if(activeProject===project) {if(document.getElementById('procurement-id').value===id) closeProcurementEditor();procurementRows=procurementRows.filter(r=>r.id!==id);renderProcurementSchedule();}
+                showToast('採購排程已刪除。');
+            } catch(error) {showError(error);}
+        }
+        async function restoreProcurementSchedules(rows) {
+            requireSignedIn(false,true);
+            if(!Array.isArray(rows) || rows.length>5000) throw new Error('採購排程備份格式不正確或超過 5000 筆。');
+            const normalized=rows.map(raw=>({raw,data:validateProcurementSchedule(raw,raw.project)}));
+            let count=0;
+            for(let offset=0;offset<normalized.length;offset+=200) {
+                const batch=fbDb.batch();let pending=0;
+                for(const {raw,data} of normalized.slice(offset,offset+200)) {
+                    const id=String(raw.id || fbDb.collection('procurement_schedules').doc().id);
+                    if(id.includes('/')) throw new Error('採購排程備份的文件 ID 不正確。');
+                    const ref=fbDb.collection('procurement_schedules').doc(id),snapshot=await ref.get();
+                    if(snapshot.exists) continue;
+                    const now=new Date().toISOString(),uid=fbAuth.currentUser.uid;
+                    batch.set(ref,{...data,revision:1,deleted:raw.deleted===true,created_by:uid,created_at:now,updated_by:uid,updated_at:now});batch.set(fbDb.collection('project_summaries').doc(projectSummaryId(data.project)),{project:data.project},{merge:true});pending++;
+                }
+                if(pending) {await batch.commit();count+=pending;}
+            }
+            return count;
         }
 
         function findRecordById(id) { return (recordSearchRecords || []).find(r => String(r.id) === String(id)) || records.find(r => String(r.id) === String(id)); }
