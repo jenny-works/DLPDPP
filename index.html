@@ -14,6 +14,16 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
     <script src="./firebase-config.js"></script>
+<style>
+.bom-toolbar{padding:20px}
+.bom-filter-grid{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,minmax(150px,180px));gap:12px;align-items:center}
+.bom-filter-grid input,.bom-filter-grid select{height:44px;width:100%;min-width:0;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-size:14px;color:#334155}
+.bom-search-field{min-width:0}
+.bom-action-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;border-top:1px solid #e2e8f0;padding-top:16px;margin-top:16px}
+.bom-action-row>button,.bom-action-row>label{min-height:40px;padding:9px 16px;font-size:14px;white-space:nowrap;justify-content:center;border-radius:10px}
+@media(max-width:1100px){.bom-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.bom-search-field{grid-column:1/-1}}
+@media(max-width:600px){.bom-toolbar{padding:16px}.bom-filter-grid{grid-template-columns:1fr}.bom-action-row>button,.bom-action-row>label{flex:1 1 calc(50% - 10px)}}
+</style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans antialiased">
 
@@ -361,11 +371,11 @@
                 </div>
             </div>
 
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div class="flex flex-1 flex-col sm:flex-row sm:flex-wrap items-center gap-3">
-                    <div class="relative w-full sm:flex-1 sm:min-w-[20rem] lg:min-w-[24rem]">
+            <div class="bom-toolbar bg-white rounded-xl border border-slate-200 shadow-sm">
+                <div class="bom-filter-grid">
+                    <div class="relative bom-search-field">
                         <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="filter-bom-search" oninput="renderBomTable()" placeholder="搜尋..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <input type="text" id="filter-bom-search" oninput="renderBomTable()" placeholder="搜尋料號、品名或備註" aria-label="搜尋缺料明細" class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
                     <select id="filter-bom-project" onchange="renderBomTable()" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
                         <option value="ALL">全部專案</option>
@@ -377,10 +387,10 @@
                     </select>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="bom-action-row">
                     <button onclick="exportSelectedBom()" class="px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                        <span>匯出勾選明細</span>
+                        <span>匯出明細</span>
                     </button>
                     <button onclick="downloadBomTemplate()" class="px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
@@ -388,7 +398,7 @@
                     </button>
                     <button onclick="openBomModal()" class="admin-only hidden px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium flex items-center space-x-1 transition shadow-sm">
                         <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                        <span>手動新增 BOM 需求</span>
+                        <span>新增BOM需求</span>
                     </button>
                     <label class="admin-only hidden cursor-pointer px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium flex items-center space-x-1 transition shadow-sm">
                         <i data-lucide="upload" class="w-3.5 h-3.5"></i>
@@ -397,7 +407,7 @@
                     </label>
                     <button onclick="deleteSelectedBomItems()" class="admin-only hidden px-3 py-2 border border-rose-200 hover:bg-rose-50 text-rose-600 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        <span>刪除選取 BOM</span>
+                        <span>刪除</span>
                     </button>
                 </div>
             </div>
