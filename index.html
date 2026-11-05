@@ -14,6 +14,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
     <script src="./firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
+    <script defer src="./vendor/jszip.min.js"></script>
+    <script defer src="./project-files.js"></script>
 <style>
 .bom-toolbar{padding:20px}
 .bom-filter-grid{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,minmax(150px,180px));gap:12px;align-items:center}
@@ -211,6 +214,7 @@
                         <span>缺料明細</span>
             </button>
             <button id="tab-procurement-btn" onclick="switchTab('procurement')" class="pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center space-x-2"><i data-lucide="calendar-clock" class="w-4 h-4"></i><span>採購進度排程</span></button>
+            <button id="tab-documents-btn" onclick="switchTab('documents')" class="pb-3 px-1 border-b-2 border-transparent text-slate-500 hover:text-slate-700 font-medium text-sm flex items-center space-x-2"><i data-lucide="folder-open" class="w-4 h-4"></i><span>專案文件</span></button>
         </div>
 
         <!-- 分頁 1: 明細紀錄列表 -->
@@ -488,6 +492,43 @@
             </div>
         </div>
 
+        <div id="tab-documents-view" class="hidden space-y-5">
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div><h3 class="text-lg font-bold text-slate-800">專案文件</h3><p class="mt-1 text-sm text-slate-500">簡報、說明書與專案資料，保留每次上傳的版本。</p></div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="ProjectFiles.backup()" class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700">下載文件備份 ZIP</button>
+                        <button type="button" onclick="ProjectFiles.load(true)" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">重新整理</button>
+                        <button type="button" onclick="ProjectFiles.openUpload()" class="admin-only hidden rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">上傳檔案</button>
+                    </div>
+                </div>
+                <div class="mt-5 flex flex-wrap gap-3 border-t border-slate-100 pt-4 text-sm text-slate-500"><span id="project-files-count">0 份文件</span><span class="text-slate-300">／</span><span id="project-files-versions">0 個版本</span><span class="text-slate-300">／</span><span>PDF、PPT、PPTX · 單檔最多 50 MB</span></div>
+            </div>
+            <form id="project-files-upload-form" onsubmit="ProjectFiles.submitUpload(event)" class="hidden rounded-2xl border border-indigo-200 bg-white p-5 shadow-sm">
+                <h4 id="project-files-upload-title" class="font-bold text-indigo-700">上傳專案文件</h4>
+                <input id="project-files-target" type="hidden">
+                <fieldset id="project-files-upload-fields" class="mt-4 space-y-4">
+                    <label class="block text-sm text-slate-600">選擇檔案<input id="project-files-input" onchange="ProjectFiles.chooseFiles()" type="file" required multiple accept=".pdf,.ppt,.pptx" class="mt-2 block w-full rounded-xl border border-dashed border-indigo-300 bg-indigo-50 p-4 text-sm"></label>
+                    <p class="text-xs text-slate-500">一次最多 10 個檔案，合計最多 200 MB。同檔名會新增版本，保留舊版。</p>
+                    <div class="grid gap-4 sm:grid-cols-2"><label class="text-sm text-slate-600">分類<input id="project-files-category" maxlength="50" placeholder="例如：產品簡報、組裝文件" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="text-sm text-slate-600">備註<input id="project-files-remark" maxlength="2000" placeholder="本次上傳說明" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label></div>
+                    <div class="flex gap-3"><button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">開始上傳</button><button type="button" onclick="ProjectFiles.closeUpload()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">取消</button></div>
+                </fieldset>
+                <div id="project-files-progress" role="status" aria-live="polite" class="mt-4 space-y-2 text-sm text-slate-600"></div>
+            </form>
+            <form id="project-files-edit-form" onsubmit="ProjectFiles.saveMetadata(event)" class="hidden rounded-xl border border-indigo-200 bg-white p-5">
+                <h4 class="font-bold text-indigo-700">編輯文件資料</h4><input id="project-files-edit-id" type="hidden"><input id="project-files-edit-revision" type="hidden">
+                <div class="mt-4 grid gap-4 sm:grid-cols-2"><label class="text-sm text-slate-600">文件名稱<input id="project-files-edit-name" required maxlength="255" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="text-sm text-slate-600">分類<input id="project-files-edit-category" maxlength="50" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label><label class="text-sm text-slate-600 sm:col-span-2">備註<textarea id="project-files-edit-remark" maxlength="2000" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></textarea></label></div>
+                <div class="mt-4 flex gap-3"><button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">儲存</button><button type="button" onclick="ProjectFiles.closeEdit()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">取消</button></div>
+            </form>
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex flex-wrap gap-3"><input id="project-files-search" type="search" oninput="ProjectFiles.render()" aria-label="搜尋專案文件" placeholder="搜尋文件名稱、分類、上傳人員或備註" class="min-w-[15rem] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"><select id="project-files-type" aria-label="檔案類型" onchange="ProjectFiles.render()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="ALL">全部檔案類型</option><option value="PDF">PDF</option><option value="PPT">PPT／PPTX</option></select><select id="project-files-trash" aria-label="文件狀態" onchange="ProjectFiles.render()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="ACTIVE">使用中的文件</option><option value="TRASH">回收區</option></select></div>
+                <p id="project-files-status" role="status" class="my-4 text-sm text-slate-500">開啟頁籤後載入文件。</p>
+                <div class="overflow-x-auto"><table class="w-full text-left text-sm" style="min-width:900px"><thead><tr class="border-b bg-slate-50 text-slate-500"><th class="p-3">文件名稱／分類</th><th class="p-3">版本／大小</th><th class="p-3">更新日期／上傳人員</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="project-files-body"></tbody></table></div>
+            </div>
+            <div id="project-files-history" class="hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div class="flex justify-between gap-3"><h4 id="project-files-history-title" class="font-bold">版本紀錄</h4><button type="button" onclick="ProjectFiles.closeHistory()" class="text-sm text-slate-500">關閉</button></div><div id="project-files-history-body" class="mt-4 space-y-3"></div></div>
+            <div id="project-files-preview" class="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div class="mb-3 flex items-center justify-between gap-3"><h4 id="project-files-preview-title" class="truncate font-bold">PDF 預覽</h4><button type="button" onclick="ProjectFiles.closePreview()" class="rounded-lg border px-3 py-1 text-sm">關閉預覽</button></div><iframe id="project-files-preview-frame" title="專案 PDF 預覽" class="h-[70vh] w-full rounded-lg border" referrerpolicy="no-referrer"></iframe></div>
+        </div>
+
         </section>
 
     </main>
@@ -634,6 +675,7 @@
         }
         function stopProjectDataListeners() {
             resetProcurementState();
+            window.ProjectFiles?.reset();
             [stopRecordsListener, stopBomListener, stopInventorySummaryListener, stopProjectSummaryListener].forEach(stop => { if (stop) stop(); });
             stopRecordsListener = stopBomListener = stopInventorySummaryListener = stopProjectSummaryListener = null;
         }
@@ -666,7 +708,7 @@
                 if(resume.get('view')==='project' && projectSummaries.some(p=>p.project===resume.get('project'))) {
                     openProjectOverview(resume.get('project'));
                     const tab=resume.get('tab');
-                    if(['records','stock','bom','procurement'].includes(tab)) switchTab(tab);
+                    if(['records','stock','bom','procurement','documents'].includes(tab)) switchTab(tab);
                 } else if(resume.get('view')==='dispatch' && ['LOAN','LOAN_RETURN','DELIVERY'].includes(resume.get('kind'))) {
                     openDispatchPage(resume.get('kind'));
                 } else rememberCurrentView('home');
@@ -779,7 +821,7 @@
             lucide.createIcons();
         }
 
-        async function toggleAdminMode() { try { if (!fbAuth) throw new Error('Firebase Auth 尚未初始化。請確認 firebase-config.js 與 index.html 在同一資料夾、設定值已填妥，並透過 GitHub Pages 或 localhost 開啟。'); if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
+        async function toggleAdminMode() { try { window.ProjectFiles?.assertIdle(); if (!fbAuth) throw new Error('Firebase Auth 尚未初始化。請確認 firebase-config.js 與 index.html 在同一資料夾、設定值已填妥，並透過 GitHub Pages 或 localhost 開啟。'); if (fbAuth.currentUser) await fbAuth.signOut(); else await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e) { showError(e); } }
 
         function updateRecordProjectDropdown() {
             const select = document.getElementById('filter-record-project');
@@ -863,6 +905,7 @@
         }
 
         function openProjectOverview(project) {
+            try { window.ProjectFiles?.assertIdle(); } catch(error) { showError(error); return; }
             clearRecordSearch();
             activeProject = String(project || '').trim();
             if (!activeProject) return;
@@ -894,40 +937,45 @@
         }
 
         async function loadProjectDocuments(project) {
-            const [recordsForProject, bomForProject, inventoryForProject, summary, procurementForProject] = await Promise.all([
+            const [recordsForProject, bomForProject, inventoryForProject, summary, procurementForProject, filesForProject] = await Promise.all([
                 getAllQueryDocs(fbDb.collection('records').where('project', '==', project), 400),
                 getAllQueryDocs(fbDb.collection('bom').where('project', '==', project), 400),
                 getAllQueryDocs(fbDb.collection('inventory_summary').where('project', '==', project), 400),
                 fbDb.collection('project_summaries').doc(projectSummaryId(project)).get(),
-                getAllQueryDocs(fbDb.collection('procurement_schedules').where('project','==',project),400)
+                getAllQueryDocs(fbDb.collection('procurement_schedules').where('project','==',project),400),
+                getAllQueryDocs(fbDb.collection('project_files').where('project','==',project),200)
             ]);
-            return { records: recordsForProject, bom: bomForProject, inventory: inventoryForProject, summary, procurement:procurementForProject };
+            return { records: recordsForProject, bom: bomForProject, inventory: inventoryForProject, summary, procurement:procurementForProject, files:filesForProject };
         }
 
         async function editProject(project) {
             try {
+                window.ProjectFiles?.assertIdle();
                 requireSignedIn(false, true);
                 const nextName = String(prompt(`請輸入「${project}」的新專案名稱：`, project) || '').trim();
                 if (!nextName || nextName === project) return;
                 if (nextName.length > 100) throw new Error('專案名稱最多 100 個字元。');
                 const targetId = projectSummaryId(nextName);
-                const [targetSummary, targetRecords, targetBom, targetInventory, targetProcurement] = await Promise.all([
+                const [targetSummary, targetRecords, targetBom, targetInventory, targetProcurement, targetFiles] = await Promise.all([
                     fbDb.collection('project_summaries').doc(targetId).get(),
                     fbDb.collection('records').where('project', '==', nextName).limit(1).get(),
                     fbDb.collection('bom').where('project', '==', nextName).limit(1).get(),
                     fbDb.collection('inventory_summary').where('project', '==', nextName).limit(1).get(),
-                    fbDb.collection('procurement_schedules').where('project','==',nextName).limit(1).get()
+                    fbDb.collection('procurement_schedules').where('project','==',nextName).limit(1).get(),
+                    fbDb.collection('project_files').where('project','==',nextName).limit(1).get()
                 ]);
-                if (targetSummary.exists || !targetRecords.empty || !targetBom.empty || !targetInventory.empty || !targetProcurement.empty) {
+                if (targetSummary.exists || !targetRecords.empty || !targetBom.empty || !targetInventory.empty || !targetProcurement.empty || !targetFiles.empty) {
                     throw new Error('已有同名專案資料，請選擇其他名稱。');
                 }
                 const data = await loadProjectDocuments(project);
                 const recCount = data.records.length, bomCount = data.bom.length;
-                if (!confirm(`將「${project}」改名為「${nextName}」，並同步更新 ${recCount} 筆明細、${bomCount} 筆 BOM 與 ${data.inventory.length} 筆庫存摘要及 ${data.procurement.length} 筆採購排程。是否繼續？`)) return;
+                if(data.files.some(d=>d.data().purging)) throw new Error('此專案有文件正在永久刪除，請先到文件回收區完成清理。');
+                if (!confirm(`將「${project}」改名為「${nextName}」，並同步更新 ${recCount} 筆明細、${bomCount} 筆 BOM 與 ${data.inventory.length} 筆庫存摘要、${data.procurement.length} 筆採購排程及 ${data.files.length} 份文件。是否繼續？`)) return;
                 const operations = [];
                 data.records.forEach(d => operations.push({ kind: 'update', ref: d.ref, data: { project: nextName } }));
                 data.bom.forEach(d => operations.push({ kind: 'update', ref: d.ref, data: { project: nextName, updated_by: fbAuth.currentUser.email || '', updated_at: new Date().toISOString() } }));
                 data.procurement.forEach(d => operations.push({kind:'update',ref:d.ref,data:{project:nextName,revision:d.data().revision+1,updated_by:fbAuth.currentUser.uid,updated_at:new Date().toISOString()}}));
+                data.files.forEach(d => operations.push({kind:'update',ref:d.ref,data:{project:nextName,project_key:targetId,revision:d.data().revision+1,updated_by:fbAuth.currentUser.uid,updated_at:new Date().toISOString()}}));
                 data.inventory.forEach(d => {
                     const value = d.data();
                     const targetRef = fbDb.collection('inventory_summary').doc(inventorySummaryId(nextName, value.item_no));
@@ -950,9 +998,11 @@
 
         async function deleteProject(project) {
             try {
+                window.ProjectFiles?.assertIdle();
                 requireSignedIn(false, true);
                 const data = await loadProjectDocuments(project);
                 const recCount = data.records.length, bomCount = data.bom.length;
+                if(data.files.length) throw new Error('此專案仍有專案文件。請先下載文件備份，並到專案文件回收區完成永久刪除，再刪除專案。');
                 if (!confirm(`確定永久刪除專案「${project}」及其 ${recCount} 筆明細、${bomCount} 筆 BOM、${data.inventory.length} 筆庫存摘要及 ${data.procurement.length} 筆採購排程嗎？此動作無法復原。`)) return;
                 const operations = [
                     ...data.records.map(d => ({ kind: 'delete', ref: d.ref })),
@@ -1003,6 +1053,7 @@
         }
 
         function showProjectHome() {
+            try { window.ProjectFiles?.assertIdle(); } catch(error) { showError(error); return; }
             rememberCurrentView('home');
             if (!fbAuth?.currentUser) { renderSignedOut(); return; }
             clearRecordSearch();
@@ -1498,7 +1549,7 @@
         }
 
         function switchTab(tab) {
-            if(activeProject && ['records','stock','bom','procurement'].includes(tab)) rememberCurrentView('project',activeProject,tab);
+            if(activeProject && ['records','stock','bom','procurement','documents'].includes(tab)) rememberCurrentView('project',activeProject,tab);
             if (tab !== 'records' && document.getElementById('filter-search').value.trim()) {
                 clearRecordSearch();
                 applyFilters();
@@ -1507,13 +1558,15 @@
                 records: document.getElementById('tab-records-view'),
                 stock: document.getElementById('tab-stock-view'),
                 bom: document.getElementById('tab-bom-view'),
-                procurement: document.getElementById('tab-procurement-view')
+                procurement: document.getElementById('tab-procurement-view'),
+                documents: document.getElementById('tab-documents-view')
             };
             const btns = {
                 records: document.getElementById('tab-records-btn'),
                 stock: document.getElementById('tab-stock-btn'),
                 bom: document.getElementById('tab-bom-btn'),
-                procurement: document.getElementById('tab-procurement-btn')
+                procurement: document.getElementById('tab-procurement-btn'),
+                documents: document.getElementById('tab-documents-btn')
             };
 
             Object.keys(views).forEach(k => {
@@ -1531,6 +1584,7 @@
             if (tab === 'stock') renderStockTable();
             if (tab === 'bom') renderBomTable();
             if (tab === 'procurement') loadProcurementSchedule();
+            if (tab === 'documents') window.ProjectFiles ? ProjectFiles.load() : showError(new Error('請確認 project-files.js 已與 index.html 一起部署。'));
         }
 
         function addItemRow(data = null) {
@@ -2044,6 +2098,7 @@
             openDispatchPage(kind);
         }
         function openDispatchPage(kind) {
+            try { window.ProjectFiles?.assertIdle(); } catch(error) { showError(error); return; }
             if (!['LOAN','LOAN_RETURN','DELIVERY'].includes(kind)) return;
             rememberCurrentView('dispatch','','records',kind);
             document.getElementById('loan-kind-label').classList.toggle('hidden',kind === 'DELIVERY');
