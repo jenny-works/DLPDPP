@@ -447,7 +447,7 @@
         <div id="tab-procurement-view" class="hidden space-y-4">
             <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div><h3 class="text-lg font-bold text-slate-800">採購進度排程</h3><p class="mt-1 text-sm text-slate-500">記錄採購與到貨進度；實際入庫請至明細紀錄新增。</p></div>
+                    <div><h3 class="text-lg font-bold text-slate-800">採購進度排程</h3><p class="mt-1 text-sm text-slate-500">有編輯權限的人可在清單的「進度」欄直接更新狀態。實際入庫請至明細紀錄新增。</p></div>
                     <div class="flex flex-wrap gap-2"><button type="button" onclick="loadProcurementSchedule(true)" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">重新整理</button><button type="button" onclick="openProcurementEditor()" class="admin-only hidden rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">新增採購排程</button></div>
                 </div>
                 <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -2393,9 +2393,84 @@
             document.getElementById('procurement-table-body').innerHTML=visible.map(r=>{
                 const overdue=procurementIsOverdue(r,today);
                 const style=r.status==='已到貨'?'bg-emerald-50 text-emerald-700':overdue?'bg-rose-50 text-rose-700':r.status==='暫停'?'bg-slate-100 text-slate-600':'bg-indigo-50 text-indigo-700';
-                return `<tr class="border-b align-top hover:bg-slate-50"><td class="p-3">${escapeHtml(r.category)}</td><td class="p-3"><strong>${escapeHtml(r.item_no)}</strong><div class="mt-1 max-w-xs whitespace-normal text-slate-500">${escapeHtml(r.item_name)}</div></td><td class="p-3">${escapeHtml(r.supplier || '—')}<div class="mt-1 text-xs text-slate-500">${escapeHtml(r.purchase_no || '')}</div></td><td class="p-3 text-right">${Number(r.quantity).toLocaleString()}</td><td class="p-3 whitespace-nowrap">${escapeHtml(r.planned_order_date || '—')}</td><td class="p-3 whitespace-nowrap ${overdue?'text-rose-600':''}">${escapeHtml(r.expected_arrival_date || '—')}${overdue?'<div class="mt-1 text-xs">逾期未到貨</div>':''}</td><td class="p-3 whitespace-nowrap">${escapeHtml(r.actual_arrival_date || '—')}</td><td class="p-3"><span class="whitespace-nowrap rounded-full px-2 py-1 text-xs ${style}">${escapeHtml(r.status)}</span></td><td class="p-3 max-w-xs whitespace-pre-wrap break-words">${escapeHtml(r.remark || '—')}</td><td class="p-3">${isAdminMode?`<div class="flex gap-2"><button type="button" data-id="${escapeHtml(r.id)}" onclick="openProcurementEditor(this.dataset.id)" class="text-indigo-600">編輯</button><button type="button" data-id="${escapeHtml(r.id)}" onclick="deleteProcurementSchedule(this.dataset.id)" class="text-rose-600">刪除</button></div>`:'唯讀'}</td></tr>`;
+                const statusOptions = PROCUREMENT_STATUSES.map(status =>
+                    `<option value="${status}" ${status === r.status ? 'selected' : ''}>${status}</option>`
+                ).join('');
+                const progressControl = isAdminMode
+                    ? `<select data-id="${escapeHtml(r.id)}" aria-label="變更 ${escapeHtml(r.item_no)} 的採購進度" onchange="changeProcurementStatus(this)" class="min-w-[6.5rem] rounded-lg border border-slate-300 px-2 py-1.5 text-sm ${style}">${statusOptions}</select>`
+                    : `<span class="whitespace-nowrap rounded-full px-2 py-1 text-xs ${style}">${escapeHtml(r.status)}</span>`;
+                return `<tr class="border-b align-top hover:bg-slate-50"><td class="p-3">${escapeHtml(r.category)}</td><td class="p-3"><strong>${escapeHtml(r.item_no)}</strong><div class="mt-1 max-w-xs whitespace-normal text-slate-500">${escapeHtml(r.item_name)}</div></td><td class="p-3">${escapeHtml(r.supplier || '—')}<div class="mt-1 text-xs text-slate-500">${escapeHtml(r.purchase_no || '')}</div></td><td class="p-3 text-right">${Number(r.quantity).toLocaleString()}</td><td class="p-3 whitespace-nowrap">${escapeHtml(r.planned_order_date || '—')}</td><td class="p-3 whitespace-nowrap ${overdue?'text-rose-600':''}">${escapeHtml(r.expected_arrival_date || '—')}${overdue?'<div class="mt-1 text-xs">逾期未到貨</div>':''}</td><td class="p-3 whitespace-nowrap">${escapeHtml(r.actual_arrival_date || '—')}</td><td class="p-3">${progressControl}</td><td class="p-3 max-w-xs whitespace-pre-wrap break-words">${escapeHtml(r.remark || '—')}</td><td class="p-3">${isAdminMode?`<div class="flex gap-2"><button type="button" data-id="${escapeHtml(r.id)}" onclick="openProcurementEditor(this.dataset.id)" class="text-indigo-600">編輯</button><button type="button" data-id="${escapeHtml(r.id)}" onclick="deleteProcurementSchedule(this.dataset.id)" class="text-rose-600">刪除</button></div>`:'唯讀'}</td></tr>`;
             }).join('');
         }
+
+        async function updateProcurementSchedule(id, project, revision, fields) {
+            const ref = fbDb.collection('procurement_schedules').doc(id);
+            const changes = {
+                ...fields,
+                revision: revision + 1,
+                updated_by: fbAuth.currentUser.uid,
+                updated_at: new Date().toISOString()
+            };
+            return fbDb.runTransaction(async tx => {
+                const snapshot = await tx.get(ref);
+                const current = snapshot.data();
+                if (!snapshot.exists || current.deleted || current.project !== project) {
+                    throw new Error('排程已刪除或移至其他專案，請重新整理。');
+                }
+                if (current.revision !== revision) {
+                    throw new Error('其他人已更新這筆排程，請重新整理後再編輯。');
+                }
+                tx.update(ref, changes);
+                return { ...current, ...changes, id };
+            });
+        }
+
+        async function changeProcurementStatus(select) {
+            const project = activeProject;
+            const row = procurementRows.find(item => item.id === select.dataset.id && item.project === project);
+            if (!row) {
+                renderProcurementSchedule();
+                showError(new Error('找不到排程，請重新整理。'));
+                return;
+            }
+            const status = select.value;
+            if (procurementSaving || status === row.status || !PROCUREMENT_STATUSES.includes(status)) {
+                select.value = row.status;
+                return;
+            }
+
+            procurementSaving = true;
+            select.disabled = true;
+            try {
+                requireSignedIn(true);
+                const updated = await updateProcurementSchedule(row.id, project, row.revision, { status });
+                if (activeProject === project) {
+                    const editId = document.getElementById('procurement-id');
+                    const editRevision = document.getElementById('procurement-revision');
+                    if (procurementEditorProject === project && editId.value === row.id && Number(editRevision.value) === row.revision) {
+                        editRevision.value = updated.revision;
+                        const editStatus = document.getElementById('procurement-status');
+                        if (editStatus.value === row.status) editStatus.value = status;
+                    }
+                    if (procurementLoading) {
+                        await loadProcurementSchedule(true);
+                    } else {
+                        procurementRows = procurementRows.map(item =>
+                            item.id === row.id && item.revision <= updated.revision ? updated : item
+                        );
+                        renderProcurementSchedule();
+                    }
+                }
+                showToast(`採購進度已更新為「${status}」。`);
+            } catch (error) {
+                select.value = row.status;
+                showError(error);
+            } finally {
+                procurementSaving = false;
+                select.disabled = false;
+            }
+        }
+
         let procurementRowCounter = 1;
         function addProcurementRow() {
             try {
@@ -2439,15 +2514,9 @@
                 if(rawRows.length>50) throw new Error('每次最多新增 50 個採購項目。');
                 const entries=rawRows.map((value,index)=>{try{return validateProcurementSchedule(value,project);}catch(error){throw new Error(`第 ${index+1} 項：${error.message}`);}});
                 const data=entries[0];
-                const now=new Date().toISOString(),uid=fbAuth.currentUser.uid;
-                const ref=id ? fbDb.collection('procurement_schedules').doc(id) : fbDb.collection('procurement_schedules').doc();
-                if(id) await fbDb.runTransaction(async tx=>{
-                    const snapshot=await tx.get(ref);
-                    if(!snapshot.exists || snapshot.data().deleted || snapshot.data().project!==project) throw new Error('排程已刪除或移至其他專案，請重新整理。');
-                    if(snapshot.data().revision!==revision) throw new Error('其他人已更新這筆排程，請重新整理後再編輯。');
-                    tx.update(ref,{...data,revision:revision+1,updated_by:uid,updated_at:now});
-                });
+                if(id) await updateProcurementSchedule(id,project,revision,data);
                 else {
+                    const now=new Date().toISOString(),uid=fbAuth.currentUser.uid;
                     const batch=fbDb.batch();
                     for(const entry of entries) batch.set(fbDb.collection('procurement_schedules').doc(),{...entry,revision:1,deleted:false,created_by:uid,created_at:now,updated_by:uid,updated_at:now});
                     await batch.commit();
