@@ -23,24 +23,140 @@
 .bom-action-row>button,.bom-action-row>label{min-height:40px;padding:9px 16px;font-size:14px;white-space:nowrap;justify-content:center;border-radius:10px}
 @media(max-width:1100px){.bom-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.bom-search-field{grid-column:1/-1}}
 @media(max-width:600px){.bom-toolbar{padding:16px}.bom-filter-grid{grid-template-columns:1fr}.bom-action-row>button,.bom-action-row>label{flex:1 1 calc(50% - 10px)}}
+
+.procurement-table {
+    min-width: 1280px;
+}
+
+@media (max-width: 1023px) {
+    #role-badge {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
+    #role-badge > svg {
+        flex-shrink: 0;
+    }
+
+    header button,
+    #workspace-header-actions > label,
+    #workspace-tabs button,
+    #tab-procurement-view button,
+    #tab-procurement-view input:not([type="hidden"]),
+    #tab-procurement-view select,
+    #tab-procurement-view textarea {
+        min-height: 44px;
+    }
+
+    #tab-procurement-view input,
+    #tab-procurement-view select,
+    #tab-procurement-view textarea {
+        min-width: 0;
+        font-size: 16px;
+    }
+
+    #tab-procurement-view label {
+        min-width: 0;
+    }
+
+    .procurement-table {
+        display: block;
+        min-width: 0;
+    }
+
+    /* Keep column headers available to screen readers in the card layout. */
+    .procurement-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+    }
+
+    .procurement-table tbody {
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .procurement-table tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas:
+            "item item"
+            "progress progress"
+            "category quantity"
+            "supplier supplier"
+            "planned expected"
+            "actual actual"
+            "remark remark"
+            "actions actions";
+        gap: 0.75rem 1rem;
+        padding: 0.875rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        background: #fff;
+    }
+
+    .procurement-table td {
+        min-width: 0;
+        padding: 0;
+        text-align: left;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .procurement-table td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 0.125rem;
+        color: #64748b;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .procurement-table .procurement-item { grid-area: item; }
+    .procurement-table .procurement-progress { grid-area: progress; }
+    .procurement-table .procurement-category { grid-area: category; }
+    .procurement-table .procurement-quantity { grid-area: quantity; }
+    .procurement-table .procurement-supplier { grid-area: supplier; }
+    .procurement-table .procurement-planned { grid-area: planned; }
+    .procurement-table .procurement-expected { grid-area: expected; }
+    .procurement-table .procurement-actual { grid-area: actual; }
+    .procurement-table .procurement-remark { grid-area: remark; white-space: pre-wrap; }
+    .procurement-table .procurement-actions { grid-area: actions; }
+
+    .procurement-table .procurement-item strong {
+        font-size: 1rem;
+    }
+
+    .procurement-table .procurement-progress select {
+        width: 100%;
+    }
+
+    .procurement-table .procurement-actions button {
+        padding: 0.375rem 0.875rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+    }
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans antialiased">
 
     <!-- 頂部導覽列 -->
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="p-2 bg-indigo-600 text-white rounded-lg shadow-sm">
+    <header class="bg-white border-b border-slate-200 lg:sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-16 py-2 lg:h-16 lg:py-0 flex flex-wrap lg:flex-nowrap items-center justify-between gap-2">
+            <div class="flex w-full min-w-0 lg:w-auto items-center gap-3">
+                <div class="shrink-0 p-2 bg-indigo-600 text-white rounded-lg shadow-sm">
                     <i data-lucide="boxes" class="w-6 h-6"></i>
                 </div>
                 <button type="button" onclick="showProjectHome()" class="text-left rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" title="返回首頁">
-                    <h1 class="text-xl font-bold text-slate-900 leading-none">DL 入出庫明細與庫存系統</h1>
-                    <span class="text-xs text-slate-500">Inventory & BOM Reconciliation System</span>
+                    <h1 class="text-base lg:text-xl font-bold text-slate-900 leading-tight lg:leading-none">DL 入出庫明細與庫存系統</h1>
+                    <span class="hidden lg:inline text-xs text-slate-500">Inventory & BOM Reconciliation System</span>
                 </button>
             </div>
             
-            <div class="flex items-center space-x-3">
+            <div class="flex w-full min-w-0 flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:gap-3">
                 <!-- 權限模式標籤 -->
                 <span id="role-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 flex items-center space-x-1">
                     <i data-lucide="eye" class="w-3.5 h-3.5"></i>
@@ -53,7 +169,7 @@
                     <span id="admin-btn-text">Google 登入</span>
                 </button>
 
-                <div id="workspace-header-actions" class="hidden flex items-center space-x-3">
+                <div id="workspace-header-actions" class="hidden flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:gap-3">
                 <button id="btn-export-backup" onclick="exportCloudBackup()" class="owner-only hidden px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium">匯出 JSON 備份</button>
                 <button id="btn-users" onclick="manageUserRole()" class="owner-only hidden px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-xs font-medium">人員權限</button>
                 <label class="owner-only hidden cursor-pointer px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium">
@@ -70,8 +186,8 @@
         </div>
     </header>
 
-    <div id="app-message" role="status" class="hidden fixed top-20 right-4 z-50 max-w-lg rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm shadow-lg"></div>
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div id="app-message" role="status" class="hidden fixed bottom-4 inset-x-3 sm:left-auto sm:right-4 lg:bottom-auto lg:top-20 z-50 max-w-lg break-words rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm shadow-lg"></div>
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6">
 
         <!-- 首頁專案總覽 -->
         <section id="signed-out-view" class="hidden">
@@ -148,56 +264,56 @@
         <section id="workspace-view" class="hidden space-y-6">
             <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <div class="flex items-center gap-3">
-                    <button onclick="showProjectHome()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">← 專案首頁</button>
-                    <h2 id="active-project-title" class="text-base font-bold text-slate-800"></h2>
+                    <button onclick="showProjectHome()" class="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-100">← 專案首頁</button>
+                    <h2 id="active-project-title" class="min-w-0 break-words text-base font-bold text-slate-800"></h2>
                 </div>
             </div>
 
         <!-- 數據統計卡片 -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
-                <div class="p-3 bg-blue-50 text-blue-600 rounded-lg">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+            <div class="min-w-0 bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div class="hidden md:block p-3 bg-blue-50 text-blue-600 rounded-lg">
                     <i data-lucide="list" class="w-6 h-6"></i>
                 </div>
-                <div>
+                <div class="min-w-0">
                     <p class="text-xs text-slate-500 font-medium">總記錄數</p>
-                    <h3 id="stat-total-count" class="text-2xl font-bold text-slate-800">0 <span class="text-xs font-normal text-slate-500">筆</span></h3>
+                    <h3 id="stat-total-count" class="break-words text-lg md:text-2xl font-bold text-slate-800">0 <span class="text-xs font-normal text-slate-500">筆</span></h3>
                 </div>
             </div>
 
-            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
-                <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+            <div class="min-w-0 bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div class="hidden md:block p-3 bg-emerald-50 text-emerald-600 rounded-lg">
                     <i data-lucide="arrow-down-left" class="w-6 h-6"></i>
                 </div>
-                <div>
+                <div class="min-w-0">
                     <p class="text-xs text-slate-500 font-medium">總入庫量</p>
-                    <h3 id="stat-total-in" class="text-2xl font-bold text-emerald-600">0</h3>
+                    <h3 id="stat-total-in" class="break-words text-lg md:text-2xl font-bold text-emerald-600">0</h3>
                 </div>
             </div>
 
-            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
-                <div class="p-3 bg-rose-50 text-rose-600 rounded-lg">
+            <div class="min-w-0 bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div class="hidden md:block p-3 bg-rose-50 text-rose-600 rounded-lg">
                     <i data-lucide="arrow-up-right" class="w-6 h-6"></i>
                 </div>
-                <div>
+                <div class="min-w-0">
                     <p class="text-xs text-slate-500 font-medium">總出貨量</p>
-                    <h3 id="stat-total-out" class="text-2xl font-bold text-rose-600">0</h3>
+                    <h3 id="stat-total-out" class="break-words text-lg md:text-2xl font-bold text-rose-600">0</h3>
                 </div>
             </div>
 
-            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
-                <div class="p-3 bg-amber-50 text-amber-600 rounded-lg">
+            <div class="min-w-0 bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                <div class="hidden md:block p-3 bg-amber-50 text-amber-600 rounded-lg">
                     <i data-lucide="alert-triangle" class="w-6 h-6"></i>
                 </div>
-                <div>
+                <div class="min-w-0">
                     <p class="text-xs text-slate-500 font-medium">缺料項目</p>
-                    <h3 id="stat-shortage-count" class="text-2xl font-bold text-amber-600">0 <span class="text-xs font-normal text-slate-500">項</span></h3>
+                    <h3 id="stat-shortage-count" class="break-words text-lg md:text-2xl font-bold text-amber-600">0 <span class="text-xs font-normal text-slate-500">項</span></h3>
                 </div>
             </div>
         </div>
 
         <!-- 頁籤選單 -->
-        <div class="border-b border-slate-200 flex flex-wrap gap-x-5 gap-y-3">
+        <div id="workspace-tabs" class="border-b border-slate-200 grid grid-cols-2 gap-x-3 gap-y-2 sm:flex sm:flex-wrap sm:gap-x-5 sm:gap-y-3">
             <button id="tab-records-btn" onclick="switchTab('records')" class="pb-3 px-1 border-b-2 border-indigo-600 text-indigo-600 font-bold text-sm flex items-center space-x-2">
                 <i data-lucide="file-text" class="w-4 h-4"></i>
                 <span>明細紀錄列表</span>
@@ -445,7 +561,7 @@
             </div>
         </div>
         <div id="tab-procurement-view" class="hidden space-y-4">
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="rounded-xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div><h3 class="text-lg font-bold text-slate-800">採購進度排程</h3><p class="mt-1 text-sm text-slate-500">有編輯權限的人可在清單的「進度」欄直接更新狀態。實際入庫請至明細紀錄新增。</p></div>
                     <div class="flex flex-wrap gap-2"><button type="button" onclick="loadProcurementSchedule(true)" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">重新整理</button><button type="button" onclick="openProcurementEditor()" class="admin-only hidden rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">新增採購排程</button></div>
@@ -457,7 +573,7 @@
                     <div class="rounded-xl bg-emerald-50 p-3"><p class="text-xs text-emerald-700">已到貨</p><p id="procurement-arrived" class="mt-1 text-xl font-bold text-emerald-700">0</p></div>
                 </div>
             </div>
-            <div id="procurement-editor" class="hidden rounded-xl border border-indigo-200 bg-white p-5 shadow-sm">
+            <div id="procurement-editor" class="hidden rounded-xl border border-indigo-200 bg-white p-3 sm:p-5 shadow-sm">
                 <h4 id="procurement-editor-title" class="font-bold text-indigo-700">新增採購排程</h4>
                 <form id="procurement-form" onsubmit="saveProcurementSchedule(event)" class="mt-4 space-y-4">
                     <input id="procurement-id" type="hidden"><input id="procurement-revision" type="hidden" value="0">
@@ -478,13 +594,31 @@
                     <div class="flex gap-3"><button id="procurement-save" type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">儲存排程</button><button type="button" onclick="closeProcurementEditor()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">取消</button></div>
                 </form>
             </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="flex flex-wrap items-center gap-3">
-                    <label class="min-w-[16rem] flex-1"><span class="sr-only">查詢採購排程</span><input id="procurement-search" type="search" oninput="renderProcurementSchedule()" placeholder="搜尋料號、品名、供應商、單號或備註" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label>
-                    <select id="procurement-status-filter" aria-label="採購進度篩選" onchange="renderProcurementSchedule()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="ALL">全部進度</option><option>未下單</option><option>已下單</option><option>部分到貨</option><option>已到貨</option><option>暫停</option><option value="OVERDUE">逾期未到貨</option></select>
+            <div class="rounded-xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
+                <div class="grid grid-cols-1 gap-3 sm:flex sm:flex-wrap sm:items-center">
+                    <label class="min-w-0 flex-1"><span class="sr-only">查詢採購排程</span><input id="procurement-search" type="search" oninput="renderProcurementSchedule()" placeholder="搜尋料號、品名、供應商、單號或備註" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label>
+                    <select id="procurement-status-filter" aria-label="採購進度篩選" onchange="renderProcurementSchedule()" class="w-full sm:w-auto rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="ALL">全部進度</option><option>未下單</option><option>已下單</option><option>部分到貨</option><option>已到貨</option><option>暫停</option><option value="OVERDUE">逾期未到貨</option></select>
                 </div>
                 <p id="procurement-load-status" role="status" class="my-4 text-sm text-slate-500">開啟頁籤後載入排程。</p>
-                <div class="overflow-x-auto"><table class="w-full text-left text-sm" style="min-width:1280px"><thead><tr class="border-b bg-slate-50 text-slate-600"><th class="p-3">類別</th><th class="p-3">料號／品名</th><th class="p-3">供應商／採購單號</th><th class="p-3 text-right">數量</th><th class="p-3">預計下單</th><th class="p-3">預計到貨</th><th class="p-3">實際到貨</th><th class="p-3">進度</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="procurement-table-body"></tbody></table></div>
+                <div class="overflow-x-auto">
+                    <table class="procurement-table w-full text-left text-sm" role="table" aria-label="採購排程清單">
+                        <thead role="rowgroup">
+                            <tr role="row" class="border-b bg-slate-50 text-slate-600">
+                                <th scope="col" role="columnheader" class="p-3">類別</th>
+                                <th scope="col" role="columnheader" class="p-3">料號／品名</th>
+                                <th scope="col" role="columnheader" class="p-3">供應商／採購單號</th>
+                                <th scope="col" role="columnheader" class="p-3 text-right">數量</th>
+                                <th scope="col" role="columnheader" class="p-3">預計下單</th>
+                                <th scope="col" role="columnheader" class="p-3">預計到貨</th>
+                                <th scope="col" role="columnheader" class="p-3">實際到貨</th>
+                                <th scope="col" role="columnheader" class="p-3">進度</th>
+                                <th scope="col" role="columnheader" class="p-3">備註</th>
+                                <th scope="col" role="columnheader" class="p-3">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="procurement-table-body" role="rowgroup"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -2399,7 +2533,33 @@
                 const progressControl = isAdminMode
                     ? `<select data-id="${escapeHtml(r.id)}" aria-label="變更 ${escapeHtml(r.item_no)} 的採購進度" onchange="changeProcurementStatus(this)" class="min-w-[6.5rem] rounded-lg border border-slate-300 px-2 py-1.5 text-sm ${style}">${statusOptions}</select>`
                     : `<span class="whitespace-nowrap rounded-full px-2 py-1 text-xs ${style}">${escapeHtml(r.status)}</span>`;
-                return `<tr class="border-b align-top hover:bg-slate-50"><td class="p-3">${escapeHtml(r.category)}</td><td class="p-3"><strong>${escapeHtml(r.item_no)}</strong><div class="mt-1 max-w-xs whitespace-normal text-slate-500">${escapeHtml(r.item_name)}</div></td><td class="p-3">${escapeHtml(r.supplier || '—')}<div class="mt-1 text-xs text-slate-500">${escapeHtml(r.purchase_no || '')}</div></td><td class="p-3 text-right">${Number(r.quantity).toLocaleString()}</td><td class="p-3 whitespace-nowrap">${escapeHtml(r.planned_order_date || '—')}</td><td class="p-3 whitespace-nowrap ${overdue?'text-rose-600':''}">${escapeHtml(r.expected_arrival_date || '—')}${overdue?'<div class="mt-1 text-xs">逾期未到貨</div>':''}</td><td class="p-3 whitespace-nowrap">${escapeHtml(r.actual_arrival_date || '—')}</td><td class="p-3">${progressControl}</td><td class="p-3 max-w-xs whitespace-pre-wrap break-words">${escapeHtml(r.remark || '—')}</td><td class="p-3">${isAdminMode?`<div class="flex gap-2"><button type="button" data-id="${escapeHtml(r.id)}" onclick="openProcurementEditor(this.dataset.id)" class="text-indigo-600">編輯</button><button type="button" data-id="${escapeHtml(r.id)}" onclick="deleteProcurementSchedule(this.dataset.id)" class="text-rose-600">刪除</button></div>`:'唯讀'}</td></tr>`;
+                const rowActions = isAdminMode ? `
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" data-id="${escapeHtml(r.id)}" onclick="openProcurementEditor(this.dataset.id)" class="text-indigo-600">編輯</button>
+                        <button type="button" data-id="${escapeHtml(r.id)}" onclick="deleteProcurementSchedule(this.dataset.id)" class="text-rose-600">刪除</button>
+                    </div>` : '唯讀';
+                return `
+                    <tr role="row" class="border-b align-top hover:bg-slate-50">
+                        <td role="cell" data-label="類別" class="procurement-category p-3">${escapeHtml(r.category)}</td>
+                        <td role="cell" class="procurement-item p-3">
+                            <strong>${escapeHtml(r.item_no)}</strong>
+                            <div class="mt-1 max-w-xs whitespace-normal text-slate-500">${escapeHtml(r.item_name)}</div>
+                        </td>
+                        <td role="cell" data-label="供應商／採購單號" class="procurement-supplier p-3">
+                            ${escapeHtml(r.supplier || '—')}
+                            <div class="mt-1 text-xs text-slate-500">${escapeHtml(r.purchase_no || '')}</div>
+                        </td>
+                        <td role="cell" data-label="數量" class="procurement-quantity p-3 text-right">${Number(r.quantity).toLocaleString()}</td>
+                        <td role="cell" data-label="預計下單" class="procurement-planned p-3 whitespace-nowrap">${escapeHtml(r.planned_order_date || '—')}</td>
+                        <td role="cell" data-label="預計到貨" class="procurement-expected p-3 whitespace-nowrap ${overdue ? 'text-rose-600' : ''}">
+                            ${escapeHtml(r.expected_arrival_date || '—')}
+                            ${overdue ? '<div class="mt-1 text-xs">逾期未到貨</div>' : ''}
+                        </td>
+                        <td role="cell" data-label="實際到貨" class="procurement-actual p-3 whitespace-nowrap">${escapeHtml(r.actual_arrival_date || '—')}</td>
+                        <td role="cell" data-label="進度" class="procurement-progress p-3">${progressControl}</td>
+                        <td role="cell" data-label="備註" class="procurement-remark p-3 max-w-xs whitespace-pre-wrap break-words">${escapeHtml(r.remark || '—')}</td>
+                        <td role="cell" class="procurement-actions p-3">${rowActions}</td>
+                    </tr>`;
             }).join('');
         }
 
