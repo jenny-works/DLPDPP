@@ -2522,8 +2522,13 @@
             const search=document.getElementById('procurement-search').value.trim().toLowerCase();
             const filter=document.getElementById('procurement-status-filter').value;
             const visible=rows.filter(r=>(!search || [r.item_no,r.item_name,r.supplier,r.purchase_no,r.remark,r.category].some(v=>String(v || '').toLowerCase().includes(search))) && (filter==='ALL' || (filter==='OVERDUE' ? procurementIsOverdue(r,today) : r.status===filter)));
-            visible.sort((a,b)=>(a.expected_arrival_date || a.planned_order_date || '9999').localeCompare(b.expected_arrival_date || b.planned_order_date || '9999') || a.item_no.localeCompare(b.item_no));
-            document.getElementById('procurement-load-status').textContent=procurementLoading ? '正在載入採購排程…' : procurementLoadedProject===activeProject ? `${activeProject} · 共 ${rows.length} 筆，符合 ${visible.length} 筆；依預計到貨日排序` : '開啟頁籤後載入排程。';
+            visible.sort((a, b) => {
+                const arrivedOrder = Number(a.status === '已到貨') - Number(b.status === '已到貨');
+                const dateA = a.expected_arrival_date || a.planned_order_date || '9999';
+                const dateB = b.expected_arrival_date || b.planned_order_date || '9999';
+                return arrivedOrder || dateA.localeCompare(dateB) || a.item_no.localeCompare(b.item_no);
+            });
+            document.getElementById('procurement-load-status').textContent=procurementLoading ? '正在載入採購排程…' : procurementLoadedProject===activeProject ? `${activeProject} · 共 ${rows.length} 筆，符合 ${visible.length} 筆 · 已到貨排在最下方` : '開啟頁籤後載入排程。';
             document.getElementById('procurement-table-body').innerHTML=visible.map(r=>{
                 const overdue=procurementIsOverdue(r,today);
                 const style=r.status==='已到貨'?'bg-emerald-50 text-emerald-700':overdue?'bg-rose-50 text-rose-700':r.status==='暫停'?'bg-slate-100 text-slate-600':'bg-indigo-50 text-indigo-700';
