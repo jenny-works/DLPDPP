@@ -333,14 +333,14 @@
         <!-- 分頁 1: 明細紀錄列表 -->
         <div id="tab-records-view" class="space-y-4">
             <!-- 篩選列 -->
-            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div class="flex flex-1 flex-col sm:flex-row items-center gap-3">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                     <div class="relative w-full sm:flex-[1.5] sm:min-w-[16rem] lg:min-w-[20rem]">
                         <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
                         <input type="text" id="filter-search" oninput="handleRecordSearch()" placeholder="搜尋料號、品名、專案或備註..." class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                     </div>
 
-                    <select id="filter-record-project" onchange="loadRecordPage(true)" class="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                    <select id="filter-record-project" onchange="loadRecordPage(true)" class="w-full min-w-0 max-w-full truncate sm:w-64 lg:w-80 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
                         <option value="ALL">全部專案</option>
                     </select>
 
@@ -351,23 +351,23 @@
                         <option value="SUPPLIER_RETURN">退回供應商</option>
                     </select>
 
-                    <div class="flex items-center space-x-2 w-full sm:w-auto">
-                        <input type="date" id="filter-date-start" onchange="applyFilters()" class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <input type="date" id="filter-date-start" onchange="applyFilters()" class="min-w-0 flex-1 sm:flex-none px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
                         <span class="text-slate-400 text-xs">至</span>
-                        <input type="date" id="filter-date-end" onchange="applyFilters()" class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
+                        <input type="date" id="filter-date-end" onchange="applyFilters()" class="min-w-0 flex-1 sm:flex-none px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-600">
                     </div>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2 self-end md:self-auto">
-                    <button onclick="downloadRecordTemplate()" class="px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
+                <div id="record-list-actions" class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-4">
+                    <button onclick="downloadRecordTemplate()" class="min-h-10 shrink-0 whitespace-nowrap px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i><span>下載領料 CSV 範本</span>
                     </button>
-                    <label class="admin-only hidden cursor-pointer px-3 py-2 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium">匯入明細 CSV<input type="file" accept=".csv,text/csv" onchange="handleRecordImport(event)" class="hidden"></label>
-                    <button onclick="exportSelectedRecords()" class="px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
+                    <label class="admin-only hidden min-h-10 shrink-0 whitespace-nowrap inline-flex items-center cursor-pointer px-3 py-2 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium">匯入明細 CSV<input type="file" accept=".csv,text/csv" onchange="handleRecordImport(event)" class="hidden"></label>
+                    <button onclick="exportSelectedRecords()" class="min-h-10 shrink-0 whitespace-nowrap px-3 py-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
                         <span>匯出明細</span>
                     </button>
-                    <button onclick="resetFilters()" class="px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-600 rounded-lg text-sm flex items-center space-x-1 transition">
+                    <button onclick="resetFilters()" class="min-h-10 shrink-0 whitespace-nowrap px-3 py-2 border border-slate-300 hover:bg-slate-100 text-slate-600 rounded-lg text-sm flex items-center space-x-1 transition">
                         <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                         <span>重設篩選</span>
                     </button>
