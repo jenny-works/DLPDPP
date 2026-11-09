@@ -238,11 +238,12 @@
                         </div>
                         <p id="project-overview-count" class="ml-12 mt-1 text-xs text-slate-500"></p>
                     </div>
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                         <label class="relative block w-full sm:w-64">
                             <i data-lucide="search" class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
                             <input id="filter-home-project" type="search" oninput="renderProjectOverview()" placeholder="搜尋專案名稱" class="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
                         </label>
+                        <button id="btn-create-project" type="button" onclick="createProject()" class="admin-only hidden min-h-11 shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">新增專案</button>
                         <button id="btn-build-summary-home" onclick="buildInventorySummary()" class="owner-only hidden rounded-lg bg-amber-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-amber-700" title="初始化既有資料摘要，只需執行一次">建立統計索引</button>
                     </div>
                 </div>
@@ -991,7 +992,7 @@
             const empty = document.getElementById('project-overview-empty');
             empty.classList.toggle('hidden', visible.length > 0);
             document.getElementById('project-overview-empty-text').textContent = sorted.length === 0
-                ? '目前沒有專案摘要；若是首次使用，請先建立統計索引。'
+                ? (isAdminMode ? '目前沒有專案。可按「新增專案」開始。' : '目前沒有專案。')
                 : '沒有符合名稱的專案，請調整搜尋條件。';
             lucide.createIcons();
         }
@@ -1038,12 +1039,56 @@
             return { records: recordsForProject, bom: bomForProject, inventory: inventoryForProject, summary, procurement:procurementForProject };
         }
 
+        function validateProjectName(value) {
+            const project = typeof value === 'string' ? value.trim() : '';
+            if (!project || project.length > 100) throw new Error('請輸入 1 至 100 字的專案名稱。');
+            if (project === 'ALL' || project === '__UNASSIGNED__') throw new Error('此名稱是系統保留字，請改用其他名稱。');
+            return project;
+        }
+
+        async function createProject() {
+            const button = document.getElementById('btn-create-project');
+            if (button.disabled) return;
+            try {
+                requireSignedIn(true);
+                const input = prompt('請輸入新專案名稱');
+                if (input === null) return;
+                const project = validateProjectName(input);
+                const ref = fbDb.collection('project_summaries').doc(projectSummaryId(project));
+                const uid = fbAuth.currentUser.uid;
+                const summary = {
+                    project,
+                    manually_created: true,
+                    record_count: 0,
+                    in_qty: 0,
+                    out_qty: 0,
+                    updated_at: new Date().toISOString()
+                };
+                button.disabled = true;
+                await fbDb.runTransaction(async tx => {
+                    if ((await tx.get(ref)).exists) throw new Error('已有同名專案，請選擇其他名稱。');
+                    tx.set(ref, summary);
+                });
+                if (fbAuth.currentUser?.uid !== uid) return;
+                if (!projectSummaries.some(item => item.id === ref.id)) {
+                    projectSummaries.push({ id: ref.id, ...summary });
+                }
+                document.getElementById('filter-home-project').value = '';
+                renderProjectOverview();
+                showToast(`已新增專案「${project}」。`);
+            } catch (error) {
+                showError(error);
+            } finally {
+                button.disabled = false;
+            }
+        }
+
         async function editProject(project) {
             try {
                 requireSignedIn(false, true);
                 const nextName = String(prompt(`請輸入「${project}」的新專案名稱：`, project) || '').trim();
                 if (!nextName || nextName === project) return;
-                if (nextName.length > 100) throw new Error('專案名稱最多 100 個字元。');
+                validateProjectName(nextName);
                 const targetId = projectSummaryId(nextName);
                 const [targetSummary, targetRecords, targetBom, targetInventory, targetProcurement] = await Promise.all([
                     fbDb.collection('project_summaries').doc(targetId).get(),
@@ -1222,12 +1267,19 @@
                 const oldProjects = await fbDb.collection('project_summaries').get();
                 const writes = [];
                 oldInventory.docs.forEach(d => { if (!inventory.has(d.id)) writes.push({ ref: d.ref, data: null }); });
-                oldProjects.docs.forEach(d => { if (!projects.has(d.id)) writes.push({ ref: d.ref, data: null }); });
+                oldProjects.docs.forEach(d => {
+                    if (projects.has(d.id)) return;
+                    if (d.data().manually_created === true) {
+                        writes.push({ ref: d.ref, data: { record_count: 0, in_qty: 0, out_qty: 0 }, merge: true });
+                    } else {
+                        writes.push({ ref: d.ref, data: null });
+                    }
+                });
                 inventory.forEach(v => writes.push({ ref: fbDb.collection('inventory_summary').doc(v.id), data: v }));
-                projects.forEach(v => writes.push({ ref: fbDb.collection('project_summaries').doc(v.id), data: v }));
+                projects.forEach(v => writes.push({ ref: fbDb.collection('project_summaries').doc(v.id), data: v, merge: true }));
                 for (let i = 0; i < writes.length; i += 400) {
                     const batch = fbDb.batch();
-                    writes.slice(i, i + 400).forEach(w => w.data ? batch.set(w.ref, w.data) : batch.delete(w.ref));
+                    writes.slice(i, i + 400).forEach(w => w.data ? batch.set(w.ref, w.data, { merge: w.merge === true }) : batch.delete(w.ref));
                     await batch.commit();
                 }
                 await metaRef.set({ ready: true, record_count: docs.length, updated_at: new Date().toISOString() }, { merge: true });
@@ -1289,8 +1341,39 @@
                 requireSignedIn(false,true);if(method==='GET'){const s=await fbDb.collection('users').get();return {users:s.docs.map(d=>({uid:d.id,...d.data()}))};}
                 if(method==='PUT'){const email=key.trim().toLowerCase();const roleValue=String(body?.role||'');if(!email.includes('@')||!['admin','editor','viewer'].includes(roleValue))throw new Error('請輸入有效電子郵件及 admin、editor 或 viewer 權限。');const s=await fbDb.collection('users').where('email','==',email).limit(1).get();if(s.empty)throw new Error('找不到此人員；請先請對方以 Google 帳號登入一次。');await s.docs[0].ref.update({role:roleValue,updated_at:new Date().toISOString()});await audit('set_role','user',s.docs[0].id,{email,role:roleValue});return {ok:true};}
             }
-            if(p[1]==='legacy-import'&&method==='POST'){requireSignedIn(true,true);requireSummaryReady();const rs=body.records||body.demo_records||[],bs=body.bomList||body.bom_records||[];if(!Array.isArray(rs)||!Array.isArray(bs)||rs.length>5000||bs.length>5000)throw new Error('備份資料格式錯誤或超過每類 5,000 筆限制。');let nr=0,nb=0;for(let i=0;i<rs.length;i+=80){const batch=fbDb.batch(),delta={inventory:new Map(),projects:new Map()};for(const raw of rs.slice(i,i+80)){const d=cleanRecord(raw),id=encodeURIComponent(String(raw.id||firebase.firestore().collection('_ids').doc().id)),ref=fbDb.collection('records').doc(id);const exists=await ref.get();if(!exists.exists){batch.set(ref,{...d,created_at:new Date().toISOString()});batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:new Date().toISOString()},{merge:true});addRecordSummaryDelta(delta,d,1);nr++;}}queueSummaryDeltas(batch,delta);await batch.commit();}for(const raw of bs){const b=cleanBom(raw),id=encodeURIComponent(`${b.project}__${b.item_no}`);await fbDb.collection('bom').doc(id).set({...b,updated_at:new Date().toISOString()},{merge:true});nb++;}const np=await restoreProcurementSchedules(body.procurementSchedules||[]);return {records:nr,bomList:nb,procurementSchedules:np};}
-            if(p[1]==='backup'&&method==='GET'){requireSignedIn(false,true);const [rs,bs,ps]=await Promise.all([fbDb.collection('records').get(),fbDb.collection('bom').get(),fbDb.collection('procurement_schedules').get()]);return {app:'入出庫明細管理系統',schemaVersion:2,exportedAt:new Date().toISOString(),records:rs.docs.map(d=>({id:d.id,...d.data()})),bomList:bs.docs.map(d=>({id:d.id,...d.data()})),procurementSchedules:ps.docs.map(d=>({id:d.id,...d.data()}))};}
+            if(p[1]==='legacy-import'&&method==='POST'){
+                requireSignedIn(true,true);
+                requireSummaryReady();
+                const rawProjects = body.manualProjects ?? [];
+                if (!Array.isArray(rawProjects) || rawProjects.length > 5000) throw new Error('備份的專案清單格式不正確或超過 5,000 筆。');
+                const manualProjects = [...new Set(rawProjects.map(validateProjectName))];
+                const rs=body.records||body.demo_records||[],bs=body.bomList||body.bom_records||[];if(!Array.isArray(rs)||!Array.isArray(bs)||rs.length>5000||bs.length>5000)throw new Error('備份資料格式錯誤或超過每類 5,000 筆限制。');let nr=0,nb=0;for(let i=0;i<rs.length;i+=80){const batch=fbDb.batch(),delta={inventory:new Map(),projects:new Map()};for(const raw of rs.slice(i,i+80)){const d=cleanRecord(raw),id=encodeURIComponent(String(raw.id||firebase.firestore().collection('_ids').doc().id)),ref=fbDb.collection('records').doc(id);const exists=await ref.get();if(!exists.exists){batch.set(ref,{...d,created_at:new Date().toISOString()});batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:new Date().toISOString()},{merge:true});addRecordSummaryDelta(delta,d,1);nr++;}}queueSummaryDeltas(batch,delta);await batch.commit();}for(const raw of bs){const b=cleanBom(raw),id=encodeURIComponent(`${b.project}__${b.item_no}`);await fbDb.collection('bom').doc(id).set({...b,updated_at:new Date().toISOString()},{merge:true});nb++;}const np=await restoreProcurementSchedules(body.procurementSchedules||[]);
+                await runProjectWriteOps(manualProjects.map(project => ({
+                    kind: 'set',
+                    ref: fbDb.collection('project_summaries').doc(projectSummaryId(project)),
+                    data: { project, manually_created: true },
+                    merge: true
+                })));
+                return {records:nr,bomList:nb,procurementSchedules:np,manualProjects:manualProjects.length};
+            }
+            if(p[1]==='backup'&&method==='GET'){
+                requireSignedIn(false,true);
+                const [rs,bs,ps,projects] = await Promise.all([
+                    fbDb.collection('records').get(),
+                    fbDb.collection('bom').get(),
+                    fbDb.collection('procurement_schedules').get(),
+                    fbDb.collection('project_summaries').where('manually_created','==',true).get()
+                ]);
+                return {
+                    app: '入出庫明細管理系統',
+                    schemaVersion: 2,
+                    exportedAt: new Date().toISOString(),
+                    records: rs.docs.map(d=>({id:d.id,...d.data()})),
+                    bomList: bs.docs.map(d=>({id:d.id,...d.data()})),
+                    procurementSchedules: ps.docs.map(d=>({id:d.id,...d.data()})),
+                    manualProjects: projects.docs.map(d=>d.data().project)
+                };
+            }
             if(p[1]==='attachments'){
                 if(method==='POST'){requireSignedIn(true);const file=body?.get('file');if(!file)throw new Error('請選擇附件');if(file.size>650*1024)throw new Error('為符合 Firestore 免費版單筆資料上限，附件請小於 650 KB。');const dataUrl=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error('讀取附件失敗'));reader.readAsDataURL(file);});return {id:crypto.randomUUID(),name:file.name,url:dataUrl,data_url:dataUrl};}
                 if(method==='GET'){const d=await fbDb.collection('records').doc(key).get();if(!d.exists||!d.data().attachment_data_url)throw new Error('找不到附件');return {url:d.data().attachment_data_url};}
@@ -1307,7 +1390,7 @@
             try{await api(`/api/users/${encodeURIComponent(email)}`,{method:'PUT',body:{role:role.trim()}});showToast(`已更新 ${email} 的權限。`);}catch(e){showError(e);}
         }
         async function exportCloudBackup(){try{const backup=await api('/api/backup');const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`庫存雲端備份_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(a.href);}catch(e){showError(e);}}
-        async function importLegacyFile(event){const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const result=await api('/api/legacy-import',{method:'POST',body:data});alert(`匯入完成：${result.records} 筆異動、${result.bomList} 筆 BOM、${result.procurementSchedules || 0} 筆採購排程。`);}catch(e){showError(e);}finally{event.target.value='';}}
+        async function importLegacyFile(event){const file=event.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());const result=await api('/api/legacy-import',{method:'POST',body:data});alert(`匯入完成：${result.records} 筆異動、${result.bomList} 筆 BOM、${result.procurementSchedules || 0} 筆採購排程、${result.manualProjects || 0} 個手動新增專案。`);}catch(e){showError(e);}finally{event.target.value='';}}
 
         function normalizeMovementType(value) {
             const type = String(value || '').trim().toUpperCase();
