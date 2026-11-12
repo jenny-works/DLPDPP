@@ -138,6 +138,22 @@
         border: 1px solid #e2e8f0;
         border-radius: 0.5rem;
     }
+
+    /* Checkboxes should not inherit the 44px touch-height of text inputs. */
+    #tab-procurement-view input[type="checkbox"] {
+        min-height: auto;
+        width: 1.125rem;
+        height: 1.125rem;
+    }
+
+    /* Group header row for items on the same purchase order. */
+    .procurement-table tbody tr.procurement-group {
+        display: block;
+        padding: 0.625rem 0.875rem;
+        border-color: #c7d2fe;
+        background: #eef2ff;
+    }
+    .procurement-table tbody tr.procurement-group td { display: block; }
 }
 </style>
 </head>
@@ -186,7 +202,7 @@
         </div>
     </header>
 
-    <div id="app-message" role="status" class="hidden fixed bottom-4 inset-x-3 sm:left-auto sm:right-4 lg:bottom-auto lg:top-20 z-50 max-w-lg break-words rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm shadow-lg"></div>
+    <div id="app-message" role="status" title="點擊可關閉" class="hidden cursor-pointer fixed bottom-4 inset-x-3 sm:left-auto sm:right-4 lg:bottom-auto lg:top-20 z-50 max-w-lg break-words rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm shadow-lg"></div>
     <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-6">
 
         <!-- 首頁專案總覽 -->
@@ -260,8 +276,8 @@
         </section>
 
 <section id="dispatch-workspace" class="hidden space-y-5"><div class="flex items-center gap-4"><button onclick="showProjectHome()" class="rounded-lg border px-3 py-2">← 首頁</button><h2 id="dispatch-page-title" class="text-xl font-bold"></h2><label id="loan-kind-label" class="hidden text-sm">單據類型<select id="loan-kind-select" onchange="changeLoanDocumentKind(this.value)" class="ml-2 rounded-lg border px-3 py-2"><option value="LOAN">借出單</option><option value="LOAN_RETURN">借出歸還單</option></select></label></div>
-<details ontoggle="syncDispatchEditorView()" id="dispatch-editor" class="admin-only hidden rounded-xl border bg-white p-5"><summary class="cursor-pointer font-bold text-indigo-600">新增／編輯單據</summary><form onsubmit="saveDispatchDocument(event)" class="mt-4 space-y-4"><input type="hidden" id="dispatch-id"><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm">日期<input id="dispatch-date" type="date" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">對象<input id="dispatch-counterparty" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">寄送方式<input id="dispatch-shipping_method" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">專案<input id="dispatch-project" type="text"  maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">備註<input id="dispatch-remark" type="text"  maxlength="2000" class="mt-1 w-full rounded-lg border px-3 py-2"></label></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr><th>品號</th><th>品名</th><th>數量</th><th>備註</th><th>操作</th></tr></thead><tbody id="dispatch-item-rows"></tbody></table></div><button type="button" onclick="addDispatchItem()" class="rounded-lg border px-3 py-2 text-indigo-600">新增一列項目</button><div class="flex gap-3"><button id="dispatch-save" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">儲存整張單據</button><button type="button" onclick="resetDispatchForm()" class="rounded-lg border px-4 py-2">取消／清空</button></div></form></details>
-<div id="dispatch-list-panel" class="rounded-xl border bg-white p-5 space-y-4"><div class="flex items-center justify-between"><h3 class="font-bold">單據明細</h3><button type="button" onclick="printSelectedDispatchDocuments()" class="rounded-lg border border-indigo-300 px-3 py-2 text-indigo-700">匯出 PDF／列印</button><button type="button" onclick="exportSelectedDispatchDocuments()" class="rounded-lg border border-indigo-300 px-3 py-2 text-indigo-700">匯出勾選 CSV</button><button onclick="loadDispatchDocuments(true)" class="rounded-lg border px-3 py-2">重新整理</button></div><form onsubmit="event.preventDefault(); loadDispatchDocuments(true)" class="flex flex-wrap items-end gap-3"><label class="flex-1 min-w-[16rem] text-sm">關鍵字<input id="dispatch-search" type="search" placeholder="品號、品名、對象、專案、備註…" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">開始日期<input id="dispatch-date-start" type="date" class="mt-1 block rounded-lg border px-3 py-2"></label><label class="text-sm">結束日期<input id="dispatch-date-end" type="date" class="mt-1 block rounded-lg border px-3 py-2"></label><button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">查詢</button><button type="button" onclick="resetDispatchQuery();loadDispatchDocuments(true)" class="rounded-lg border px-4 py-2">清除查詢</button></form><p id="dispatch-status" class="text-sm text-slate-500" role="status"></p><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="bg-slate-100"><th class="p-3"><input id="dispatch-select-all" type="checkbox" aria-label="全選已載入單據" onchange="toggleAllDispatchDocuments(this.checked)"></th><th class="p-3">日期</th><th class="p-3">品號／品名／數量</th><th class="p-3">對象</th><th class="p-3">寄送方式</th><th class="p-3">專案</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="dispatch-body"></tbody></table></div><button id="dispatch-next" onclick="loadDispatchDocuments(false)" class="hidden rounded-lg border px-3 py-2">載入更多</button></div></section>
+<details ontoggle="syncDispatchEditorView()" id="dispatch-editor" class="admin-only hidden rounded-xl border bg-white p-5"><summary class="cursor-pointer font-bold text-indigo-600">新增／編輯單據</summary><form onsubmit="saveDispatchDocument(event)" class="mt-4 space-y-4"><input type="hidden" id="dispatch-id"><div class="grid gap-3 sm:grid-cols-2"><label class="text-sm">日期<input id="dispatch-date" type="date" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">對象<input id="dispatch-counterparty" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">寄送方式<input id="dispatch-shipping_method" type="text" required maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">專案<input id="dispatch-project" type="text"  maxlength="200" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">備註<input id="dispatch-remark" type="text"  maxlength="2000" class="mt-1 w-full rounded-lg border px-3 py-2"></label></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="bg-slate-50 text-left text-slate-600"><th class="p-2">品號</th><th class="p-2">品名</th><th class="p-2">數量</th><th class="p-2">備註</th><th class="p-2">操作</th></tr></thead><tbody id="dispatch-item-rows"></tbody></table></div><button type="button" onclick="addDispatchItem()" class="rounded-lg border px-3 py-2 text-indigo-600">新增一列項目</button><div class="flex gap-3"><button id="dispatch-save" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">儲存整張單據</button><button type="button" onclick="resetDispatchForm()" class="rounded-lg border px-4 py-2">取消／清空</button></div></form></details>
+<div id="dispatch-list-panel" class="rounded-xl border bg-white p-5 space-y-4"><div class="flex flex-wrap items-center justify-between gap-3"><h3 class="font-bold">單據明細</h3><div class="flex flex-wrap gap-2"><button type="button" onclick="printSelectedDispatchDocuments()" class="rounded-lg border border-indigo-300 px-3 py-2 text-indigo-700">匯出 PDF／列印</button><button type="button" onclick="exportSelectedDispatchDocuments()" class="rounded-lg border border-indigo-300 px-3 py-2 text-indigo-700">匯出勾選 CSV</button><button onclick="loadDispatchDocuments(true)" class="rounded-lg border px-3 py-2">重新整理</button></div></div><form onsubmit="event.preventDefault(); loadDispatchDocuments(true)" class="flex flex-wrap items-end gap-3"><label class="flex-1 min-w-[16rem] text-sm">關鍵字<input id="dispatch-search" type="search" placeholder="品號、品名、對象、專案、備註…" class="mt-1 w-full rounded-lg border px-3 py-2"></label><label class="text-sm">開始日期<input id="dispatch-date-start" type="date" class="mt-1 block rounded-lg border px-3 py-2"></label><label class="text-sm">結束日期<input id="dispatch-date-end" type="date" class="mt-1 block rounded-lg border px-3 py-2"></label><button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-white">查詢</button><button type="button" onclick="resetDispatchQuery();loadDispatchDocuments(true)" class="rounded-lg border px-4 py-2">清除查詢</button></form><p id="dispatch-status" class="text-sm text-slate-500" role="status"></p><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="bg-slate-100"><th class="p-3"><input id="dispatch-select-all" type="checkbox" aria-label="全選已載入單據" onchange="toggleAllDispatchDocuments(this.checked)"></th><th class="p-3">日期</th><th class="p-3">品號／品名／數量</th><th class="p-3">對象</th><th class="p-3">寄送方式</th><th class="p-3">專案</th><th class="p-3">備註</th><th class="p-3">操作</th></tr></thead><tbody id="dispatch-body"></tbody></table></div><button id="dispatch-next" onclick="loadDispatchDocuments(false)" class="hidden rounded-lg border px-3 py-2">載入更多</button></div></section>
         <section id="workspace-view" class="hidden space-y-6">
             <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                 <div class="flex items-center gap-3">
@@ -564,7 +580,7 @@
         <div id="tab-procurement-view" class="hidden space-y-4">
             <div class="rounded-xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div><h3 class="text-lg font-bold text-slate-800">採購進度排程</h3><p class="mt-1 text-sm text-slate-500">有編輯權限的人可在清單的「進度」欄直接更新狀態。實際入庫請至明細紀錄新增。</p></div>
+                    <div><h3 class="text-lg font-bold text-slate-800">採購進度排程</h3><p class="mt-1 text-sm text-slate-500">有編輯權限的人可在「進度」欄逐筆更新，或勾選同一張單的項目一次更新。實際入庫請至明細紀錄新增。</p></div>
                     <div class="flex flex-wrap gap-2"><button type="button" onclick="loadProcurementSchedule(true)" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">重新整理</button><button type="button" onclick="openProcurementEditor()" class="admin-only hidden rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">新增採購排程</button></div>
                 </div>
                 <div class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -576,22 +592,26 @@
             </div>
             <div id="procurement-editor" class="hidden rounded-xl border border-indigo-200 bg-white p-3 sm:p-5 shadow-sm">
                 <h4 id="procurement-editor-title" class="font-bold text-indigo-700">新增採購排程</h4>
-                <form id="procurement-form" onsubmit="saveProcurementSchedule(event)" class="mt-4 space-y-4">
+                <form id="procurement-form" onsubmit="saveProcurementSchedule(event)" class="mt-4 space-y-5">
                     <input id="procurement-id" type="hidden"><input id="procurement-revision" type="hidden" value="0">
-                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                        <label class="block text-sm text-slate-600">料號 *<input id="procurement-item_no" required maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-                        <label class="block text-sm text-slate-600">品名 *<input id="procurement-item_name" required maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-                        <label class="block text-sm text-slate-600">物料類別<select id="procurement-category" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>零組件</option><option>包材</option><option>輔材</option><option>五金</option><option>零件</option><option>電料</option></select></label>
-                        <label class="block text-sm text-slate-600">供應商<input id="procurement-supplier" maxlength="200" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-                        <label class="block text-sm text-slate-600">採購單號<input id="procurement-purchase_no" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-                        <label class="block text-sm text-slate-600">採購數量 *<input id="procurement-quantity" type="number" required min="0.000001" max="1000000000000" step="any" value="1" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-                        <label class="block text-sm text-slate-600">預計下單日<input id="procurement-planned_order_date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-                        <label class="block text-sm text-slate-600">預計到貨日<input id="procurement-expected_arrival_date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-                        <label class="block text-sm text-slate-600">實際到貨日<input id="procurement-actual_arrival_date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-                        <label class="block text-sm text-slate-600">採購進度<select id="procurement-status" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>未下單</option><option>已下單</option><option>部分到貨</option><option>已到貨</option><option>暫停</option></select></label>
-                        <label class="block text-sm text-slate-600 sm:col-span-2">備註<textarea id="procurement-remark" maxlength="2000" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></textarea></label>
+                    <fieldset class="rounded-xl border border-slate-200 p-3 sm:p-4">
+                        <legend class="px-2 text-sm font-bold text-slate-700">同一張單的共用資訊（只需填一次）</legend>
+                        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            <label class="block text-sm text-slate-600">供應商<input id="procurement-supplier" maxlength="200" list="procurement-supplier-list" autocomplete="off" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                            <label class="block text-sm text-slate-600">採購單號<input id="procurement-purchase_no" maxlength="100" list="procurement-po-list" autocomplete="off" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                            <label class="block text-sm text-slate-600">採購進度<select id="procurement-status" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option>未下單</option><option>已下單</option><option>部分到貨</option><option>已到貨</option><option>暫停</option></select></label>
+                            <label class="block text-sm text-slate-600">預計下單日<input id="procurement-planned_order_date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                            <label class="block text-sm text-slate-600">預計到貨日<input id="procurement-expected_arrival_date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                            <label class="block text-sm text-slate-600">實際到貨日<input id="procurement-actual_arrival_date" type="date" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+                        </div>
+                        <datalist id="procurement-supplier-list"></datalist><datalist id="procurement-po-list"></datalist><datalist id="procurement-item-no-list"></datalist>
+                        <label id="procurement-apply-group-label" class="mt-3 hidden items-start gap-2 text-sm text-slate-600"><input id="procurement-apply-group" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600"><span>同步套用到同一張單（相同供應商、單號、預計到貨日）的其他 <b id="procurement-apply-group-count">0</b> 項（供應商、單號、各日期與進度）</span></label>
+                    </fieldset>
+                    <div>
+                        <div class="mb-2 flex items-center justify-between"><h5 class="text-sm font-bold text-slate-700">採購項目</h5><span id="procurement-item-count" class="text-xs text-slate-500"></span></div>
+                        <div id="procurement-item-rows" class="space-y-3"></div>
+                        <button id="procurement-add-row" type="button" onclick="addProcurementRow()" class="mt-3 rounded-lg border border-indigo-300 px-4 py-2 text-sm text-indigo-700">＋ 新增一列採購項目</button>
                     </div>
-                    <div id="procurement-extra-rows" class="space-y-4"></div><button id="procurement-add-row" type="button" onclick="addProcurementRow()" class="rounded-lg border border-indigo-300 px-4 py-2 text-sm text-indigo-700">新增一列採購項目</button>
                     <div class="flex gap-3"><button id="procurement-save" type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white">儲存排程</button><button type="button" onclick="closeProcurementEditor()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm">取消</button></div>
                 </form>
             </div>
@@ -601,6 +621,14 @@
                     <select id="procurement-status-filter" aria-label="採購進度篩選" onchange="renderProcurementSchedule()" class="w-full sm:w-auto rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="ALL">全部進度</option><option>未下單</option><option>已下單</option><option>部分到貨</option><option>已到貨</option><option>暫停</option><option value="OVERDUE">逾期未到貨</option></select>
                 </div>
                 <p id="procurement-load-status" role="status" class="my-4 text-sm text-slate-500">開啟頁籤後載入排程。</p>
+                <div id="procurement-batch-bar" class="admin-only hidden sticky top-0 z-20 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm lg:top-16">
+                    <label class="inline-flex items-center gap-2 font-medium text-indigo-900"><input id="procurement-select-all" type="checkbox" onchange="toggleProcurementAllVisible(this)" class="h-4 w-4 rounded border-slate-300 text-indigo-600">全選</label>
+                    <span id="procurement-selected-count" class="text-indigo-800">已勾選 0 項</span>
+                    <select id="procurement-batch-status" aria-label="批次更新採購進度" onchange="onProcurementBatchStatusChange()" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="">改為進度…</option><option>未下單</option><option>已下單</option><option>部分到貨</option><option>已到貨</option><option>暫停</option></select>
+                    <label class="inline-flex items-center gap-2 text-slate-600">實際到貨日<input id="procurement-batch-date" type="date" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"></label>
+                    <button id="procurement-batch-apply" type="button" onclick="applyProcurementBatch()" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-40" disabled>套用到勾選項目</button>
+                    <button type="button" onclick="clearProcurementSelection()" class="text-slate-500 underline">取消勾選</button>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="procurement-table w-full text-left text-sm" role="table" aria-label="採購排程清單">
                         <thead role="rowgroup">
@@ -628,7 +656,7 @@
     </main>
 
     <!-- 新增 / 編輯 BOM 需求 Modal -->
-    <div id="modal-bom" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div id="modal-bom" role="dialog" aria-modal="true" aria-labelledby="modal-bom-title" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                 <h3 id="modal-bom-title" class="font-bold text-slate-800 text-base">新增 BOM 需求項目</h3>
@@ -667,7 +695,7 @@
     </div>
 
     <!-- 新增 / 編輯 明細 Modal -->
-    <div id="modal-form" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
+    <div id="modal-form" role="dialog" aria-modal="true" aria-labelledby="modal-title" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
         <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-4xl overflow-hidden my-8">
             <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                 <h3 id="modal-title" class="font-bold text-slate-800 text-lg">新增入出庫明細</h3>
@@ -696,7 +724,7 @@
     </div>
 
     <!-- 刪除確認 Modal -->
-    <div id="modal-delete" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div id="modal-delete" role="dialog" aria-modal="true" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
             <div class="flex items-center space-x-3 text-rose-600">
                 <div class="p-2 bg-rose-100 rounded-full">
@@ -761,6 +789,14 @@
                 } catch (err) { showError(err); } });
                 lucide.createIcons();
             } catch (err) { showError(err); }
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            const open = id => !document.getElementById(id).classList.contains('hidden');
+            if (open('modal-delete')) closeDeleteModal();
+            else if (open('modal-bom')) closeBomModal();
+            else if (open('modal-form')) closeModal();
         });
 
         function stopRealtimeData() {
@@ -853,7 +889,6 @@
         }
 
         function changeRecordPage(delta) {
-            const search = document.getElementById('filter-search').value.trim();
             if (hasRecordFilters()) return;
             if (delta > 0 && !recordHasNext) return;
             const nextPage = recordPageNumber + delta;
@@ -1382,8 +1417,17 @@
             throw new Error('找不到 Firebase 資料操作路徑。');
         }
         function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-        function showToast(message){const el=document.getElementById('app-message');if(el){el.textContent=message;el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),3500);}}
-        function showError(error){const message=error?.message||String(error);const el=document.getElementById('app-message');if(el){el.textContent=`操作失敗：${message}`;el.classList.remove('hidden');}else alert(`操作失敗：${message}`);}
+        let appMessageTimer = null;
+        function showAppMessage(text, ms) {
+            const el=document.getElementById('app-message');
+            if(!el) {alert(text);return;}
+            clearTimeout(appMessageTimer);
+            el.textContent=text;el.classList.remove('hidden');
+            el.onclick=()=>el.classList.add('hidden');
+            appMessageTimer=setTimeout(()=>el.classList.add('hidden'),ms);
+        }
+        function showToast(message){showAppMessage(message,3500);}
+        function showError(error){showAppMessage(`操作失敗：${error?.message||String(error)}`,10000);}
         async function manageUserRole(){
             if(currentUser?.user.role!=='admin'){showError(new Error('僅管理員可以設定人員權限。'));return;}
             const email=prompt('輸入要授權的人員電子郵件：');if(!email)return;
@@ -2522,7 +2566,13 @@
 
         const PROCUREMENT_STATUSES = ['未下單','已下單','部分到貨','已到貨','暫停'];
         const PROCUREMENT_FIELDS = ['item_no','item_name','category','supplier','purchase_no','quantity','planned_order_date','expected_arrival_date','actual_arrival_date','status','remark'];
+        const PROCUREMENT_SHARED_FIELDS = ['supplier','purchase_no','planned_order_date','expected_arrival_date','actual_arrival_date','status'];
         let procurementRows = [], procurementLoadedProject = '', procurementRequest = 0, procurementLoading = false, procurementSaving = false, procurementEditorProject = '';
+        let procurementSelected = new Set(), procurementVisible = [], procurementEditGroupIds = [];
+        // Items on the same purchase order that arrive on the same expected date form one group.
+        function procurementGroupKey(r) {
+            return r.purchase_no ? JSON.stringify([r.supplier || '', r.purchase_no, r.expected_arrival_date || '']) : '';
+        }
         function procurementToday() {
             const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
             return ['year','month','day'].map(k=>parts.find(p=>p.type===k).value).join('-');
@@ -2548,14 +2598,90 @@
         }
         function resetProcurementState() {
             procurementRequest++; procurementRows=[]; procurementLoadedProject=''; procurementLoading=false;
+            procurementSelected.clear(); procurementVisible=[];
             const search=document.getElementById('procurement-search');if(search) search.value='';
             const filter=document.getElementById('procurement-status-filter');if(filter) filter.value='ALL';
+            const batchStatus=document.getElementById('procurement-batch-status');if(batchStatus) batchStatus.value='';
+            const batchDate=document.getElementById('procurement-batch-date');if(batchDate) {batchDate.value='';batchDate.dataset.auto='';}
             closeProcurementEditor();
             const body=document.getElementById('procurement-table-body');if(body) body.innerHTML='';
+            updateProcurementBatchBar();
         }
         function closeProcurementEditor() {
             document.getElementById('procurement-editor')?.classList.add('hidden');
-            procurementEditorProject='';
+            procurementEditorProject='';procurementEditGroupIds=[];
+        }
+        function procurementItemCatalog() {
+            const catalog=new Map();
+            bomList.filter(b=>(b.project||'').trim()===activeProject).forEach(b=>catalog.set(b.item_no,{name:b.item_name,category:b.category || '零組件'}));
+            procurementRows.forEach(r=>{if(!catalog.has(r.item_no)) catalog.set(r.item_no,{name:r.item_name,category:r.category});});
+            return catalog;
+        }
+        function refreshProcurementSuggestions() {
+            const rows=procurementRows.filter(r=>!r.deleted && r.project===activeProject);
+            const unique=values=>[...new Set(values.filter(Boolean))];
+            const options=values=>values.map(v=>`<option value="${escapeHtml(v)}"></option>`).join('');
+            document.getElementById('procurement-supplier-list').innerHTML=options(unique(rows.map(r=>r.supplier)));
+            document.getElementById('procurement-po-list').innerHTML=options(unique(rows.map(r=>r.purchase_no)));
+            document.getElementById('procurement-item-no-list').innerHTML=[...procurementItemCatalog()].map(([no,info])=>`<option value="${escapeHtml(no)}" label="${escapeHtml(info.name || '')}"></option>`).join('');
+        }
+        function handleProcurementFormChange(event) {
+            const target=event.target;
+            if(target.id==='procurement-purchase_no') {
+                // Re-use supplier and dates from an existing line of the same purchase order.
+                if(document.getElementById('procurement-id').value) return;
+                const po=target.value.trim();
+                const match=po && procurementRows.find(r=>!r.deleted && r.project===activeProject && r.purchase_no===po);
+                if(!match) return;
+                for(const key of ['supplier','planned_order_date','expected_arrival_date']) {
+                    const el=document.getElementById('procurement-'+key);
+                    if(!el.value) el.value=match[key] || '';
+                }
+            } else if(target.dataset?.key==='item_no') {
+                const row=target.closest('.procurement-item-row');
+                const info=row && procurementItemCatalog().get(target.value.trim());
+                if(!info) return;
+                const name=row.querySelector('[data-key="item_name"]');
+                if(name.value.trim()) return;
+                name.value=info.name || '';
+                const category=row.querySelector('[data-key="category"]');
+                if(MATERIAL_CATEGORIES.includes(info.category)) category.value=info.category;
+            }
+        }
+        function updateProcurementRowControls() {
+            const rows=document.querySelectorAll('#procurement-item-rows .procurement-item-row');
+            document.getElementById('procurement-item-count').textContent=`共 ${rows.length} 項`;
+            rows.forEach(row=>row.querySelector('.procurement-remove-row')?.classList.toggle('invisible',rows.length===1));
+        }
+        function appendProcurementItemRow(data={}, fallbackCategory='') {
+            const container=document.getElementById('procurement-item-rows');
+            const category=MATERIAL_CATEGORIES.includes(data.category) ? data.category : (fallbackCategory || MATERIAL_CATEGORIES[0]);
+            const base='mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
+            container.insertAdjacentHTML('beforeend',`<div class="procurement-item-row grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1.1fr_1.6fr_.8fr_.7fr_1.3fr_auto] md:items-end">
+                <label class="block text-xs text-slate-600">料號 *<input data-key="item_no" required maxlength="100" list="procurement-item-no-list" autocomplete="off" class="procurement-value ${base}" value="${escapeHtml(data.item_no || '')}"></label>
+                <label class="block text-xs text-slate-600">品名 *<input data-key="item_name" required maxlength="200" class="procurement-value ${base}" value="${escapeHtml(data.item_name || '')}"></label>
+                <label class="block text-xs text-slate-600">物料類別<select data-key="category" class="procurement-value ${base}">${MATERIAL_CATEGORIES.map(c=>`<option ${c===category?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></label>
+                <label class="block text-xs text-slate-600">數量 *<input data-key="quantity" type="number" required min="0.000001" max="1000000000000" step="any" class="procurement-value ${base}" value="${escapeHtml(data.quantity ?? '')}"></label>
+                <label class="block text-xs text-slate-600">備註<input data-key="remark" maxlength="2000" class="procurement-value ${base}" value="${escapeHtml(data.remark || '')}"></label>
+                <button type="button" onclick="removeProcurementRow(this)" class="procurement-remove-row rounded-lg border border-rose-200 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50">移除</button>
+            </div>`);
+            updateProcurementRowControls();
+            return container.lastElementChild;
+        }
+        function removeProcurementRow(button) {
+            button.closest('.procurement-item-row')?.remove();
+            updateProcurementRowControls();
+        }
+        function addProcurementRow() {
+            try {
+                requireSignedIn(true);
+                if(procurementSaving) throw new Error('正在儲存，請稍候。');
+                if(document.getElementById('procurement-id').value) throw new Error('編輯模式只修改目前這一筆，請使用新增採購排程建立其他項目。');
+                const container=document.getElementById('procurement-item-rows');
+                if(container.children.length>=50) throw new Error('每次最多新增 50 個採購項目。');
+                const lastCategory=container.lastElementChild?.querySelector('[data-key="category"]')?.value || '';
+                appendProcurementItemRow({},lastCategory).querySelector('[data-key="item_no"]').focus();
+            } catch(error) {showError(error);}
         }
         function openProcurementEditor(id='') {
             try {
@@ -2564,12 +2690,22 @@
                 if(!activeProject) throw new Error('請先選擇專案。');
                 const row=id ? procurementRows.find(r=>r.id===id && !r.deleted) : null;
                 if(id && !row) throw new Error('找不到排程，請重新整理。');
+                ensureBomListener();
                 document.getElementById('procurement-form').reset();
-                document.getElementById('procurement-extra-rows').innerHTML='';procurementRowCounter=1;
+                document.getElementById('procurement-item-rows').innerHTML='';
                 document.getElementById('procurement-add-row').classList.toggle('hidden',!!id);
                 document.getElementById('procurement-id').value=row?.id || '';
                 document.getElementById('procurement-revision').value=row?.revision || 0;
-                if(row) for(const key of PROCUREMENT_FIELDS) document.getElementById('procurement-'+key).value=row[key] ?? '';
+                if(row) for(const key of PROCUREMENT_SHARED_FIELDS) document.getElementById('procurement-'+key).value=row[key] ?? '';
+                procurementEditGroupIds=[];
+                const groupKey=row ? procurementGroupKey(row) : '';
+                if(groupKey) procurementEditGroupIds=procurementRows.filter(r=>r.id!==row.id && !r.deleted && r.project===activeProject && procurementGroupKey(r)===groupKey).map(r=>r.id);
+                const groupLabel=document.getElementById('procurement-apply-group-label');
+                groupLabel.classList.toggle('hidden',!procurementEditGroupIds.length);
+                groupLabel.classList.toggle('flex',procurementEditGroupIds.length>0);
+                document.getElementById('procurement-apply-group-count').textContent=procurementEditGroupIds.length;
+                refreshProcurementSuggestions();
+                appendProcurementItemRow(row || {});
                 procurementEditorProject=activeProject;
                 document.getElementById('procurement-editor-title').textContent=(row?'編輯':'新增')+'採購排程 · '+activeProject;
                 const editor=document.getElementById('procurement-editor');editor.classList.remove('hidden');editor.scrollIntoView({behavior:'smooth',block:'start'});
@@ -2606,143 +2742,200 @@
             const search=document.getElementById('procurement-search').value.trim().toLowerCase();
             const filter=document.getElementById('procurement-status-filter').value;
             const visible=rows.filter(r=>(!search || [r.item_no,r.item_name,r.supplier,r.purchase_no,r.remark,r.category].some(v=>String(v || '').toLowerCase().includes(search))) && (filter==='ALL' || (filter==='OVERDUE' ? procurementIsOverdue(r,today) : r.status===filter)));
-            visible.sort((a, b) => {
-                const arrivedOrder = Number(a.status === '已到貨') - Number(b.status === '已到貨');
-                const dateA = a.expected_arrival_date || a.planned_order_date || '9999';
-                const dateB = b.expected_arrival_date || b.planned_order_date || '9999';
-                return arrivedOrder || dateA.localeCompare(dateB) || a.item_no.localeCompare(b.item_no);
+
+            // Group rows of the same purchase order + expected arrival date; keep un-numbered rows standalone.
+            const units=[],byKey=new Map();
+            visible.forEach(r=>{
+                const key=procurementGroupKey(r);
+                if(!key) {units.push({key:'',rows:[r]});return;}
+                let unit=byKey.get(key);
+                if(!unit) {unit={key,rows:[]};byKey.set(key,unit);units.push(unit);}
+                unit.rows.push(r);
             });
-            document.getElementById('procurement-load-status').textContent=procurementLoading ? '正在載入採購排程…' : procurementLoadedProject===activeProject ? `${activeProject} · 共 ${rows.length} 筆，符合 ${visible.length} 筆 · 已到貨排在最下方` : '開啟頁籤後載入排程。';
-            document.getElementById('procurement-table-body').innerHTML=visible.map(r=>{
-                const overdue=procurementIsOverdue(r,today);
-                const style=r.status==='已到貨'?'bg-emerald-50 text-emerald-700':overdue?'bg-rose-50 text-rose-700':r.status==='暫停'?'bg-slate-100 text-slate-600':'bg-indigo-50 text-indigo-700';
-                const statusOptions = PROCUREMENT_STATUSES.map(status =>
-                    `<option value="${status}" ${status === r.status ? 'selected' : ''}>${status}</option>`
-                ).join('');
-                const progressControl = isAdminMode
-                    ? `<select data-id="${escapeHtml(r.id)}" aria-label="變更 ${escapeHtml(r.item_no)} 的採購進度" onchange="changeProcurementStatus(this)" class="min-w-[6.5rem] rounded-lg border border-slate-300 px-2 py-1.5 text-sm ${style}">${statusOptions}</select>`
-                    : `<span class="whitespace-nowrap rounded-full px-2 py-1 text-xs ${style}">${escapeHtml(r.status)}</span>`;
-                const rowActions = isAdminMode ? `
-                    <div class="flex flex-wrap gap-2">
-                        <button type="button" data-id="${escapeHtml(r.id)}" onclick="openProcurementEditor(this.dataset.id)" class="text-indigo-600">編輯</button>
-                        <button type="button" data-id="${escapeHtml(r.id)}" onclick="deleteProcurementSchedule(this.dataset.id)" class="text-rose-600">刪除</button>
-                    </div>` : '唯讀';
-                return `
-                    <tr role="row" class="border-b align-top hover:bg-slate-50">
-                        <td role="cell" data-label="類別" class="procurement-category p-3">${escapeHtml(r.category)}</td>
-                        <td role="cell" class="procurement-item p-3">
+            const unitDate=unit=>unit.rows.reduce((min,r)=>{const d=r.expected_arrival_date || r.planned_order_date || '9999';return d<min?d:min;},'9999');
+            const unitArrived=unit=>unit.rows.every(r=>r.status==='已到貨');
+            units.forEach(unit=>unit.rows.sort((a,b)=>a.item_no.localeCompare(b.item_no)));
+            units.sort((a,b)=>(Number(unitArrived(a))-Number(unitArrived(b))) || unitDate(a).localeCompare(unitDate(b)) || a.rows[0].item_no.localeCompare(b.rows[0].item_no));
+            procurementVisible=units.flatMap(unit=>unit.rows);
+            const visibleIds=new Set(procurementVisible.map(r=>r.id));
+            procurementSelected=new Set([...procurementSelected].filter(id=>visibleIds.has(id)));
+
+            document.getElementById('procurement-load-status').textContent=procurementLoading ? '正在載入採購排程…' : procurementLoadedProject===activeProject ? `${activeProject} · 共 ${rows.length} 筆，符合 ${visible.length} 筆 · 同單同到貨日自動分組，已到貨排在最下方` : '開啟頁籤後載入排程。';
+            document.getElementById('procurement-table-body').innerHTML=units.map(unit=>{
+                const header=unit.key && unit.rows.length>1 ? renderProcurementGroupHeader(unit) : '';
+                return header+unit.rows.map(r=>renderProcurementRow(r,today)).join('');
+            }).join('');
+            updateProcurementBatchBar();
+        }
+        function renderProcurementGroupHeader(unit) {
+            const first=unit.rows[0],arrived=unit.rows.filter(r=>r.status==='已到貨').length;
+            const check=isAdminMode ? `<label class="inline-flex items-center gap-2 text-xs font-medium text-indigo-700"><input type="checkbox" class="procurement-group-check h-4 w-4 rounded border-slate-300 text-indigo-600" data-group="${escapeHtml(unit.key)}" onchange="toggleProcurementGroup(this)">整張單</label>` : '';
+            return `<tr role="row" class="procurement-group border-b bg-indigo-50/70">
+                <td role="cell" colspan="10" class="p-3">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                        ${check}
+                        <strong class="text-slate-800">${escapeHtml(first.supplier || '未填供應商')} · ${escapeHtml(first.purchase_no)}</strong>
+                        <span class="text-xs text-slate-600">預計到貨 ${escapeHtml(first.expected_arrival_date || '—')}</span>
+                        <span class="text-xs text-slate-500">${unit.rows.length} 項 · 已到貨 ${arrived}/${unit.rows.length}</span>
+                    </div>
+                </td>
+            </tr>`;
+        }
+        function renderProcurementRow(r,today) {
+            const overdue=procurementIsOverdue(r,today);
+            const style=r.status==='已到貨'?'bg-emerald-50 text-emerald-700':overdue?'bg-rose-50 text-rose-700':r.status==='暫停'?'bg-slate-100 text-slate-600':'bg-indigo-50 text-indigo-700';
+            const statusOptions=PROCUREMENT_STATUSES.map(status=>`<option value="${status}" ${status===r.status?'selected':''}>${status}</option>`).join('');
+            const progressControl=isAdminMode
+                ? `<select data-id="${escapeHtml(r.id)}" aria-label="變更 ${escapeHtml(r.item_no)} 的採購進度" onchange="changeProcurementStatus(this)" class="min-w-[6.5rem] rounded-lg border border-slate-300 px-2 py-1.5 text-sm ${style}">${statusOptions}</select>`
+                : `<span class="whitespace-nowrap rounded-full px-2 py-1 text-xs ${style}">${escapeHtml(r.status)}</span>`;
+            const rowActions=isAdminMode ? `
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" data-id="${escapeHtml(r.id)}" onclick="openProcurementEditor(this.dataset.id)" class="text-indigo-600">編輯</button>
+                    <button type="button" data-id="${escapeHtml(r.id)}" onclick="deleteProcurementSchedule(this.dataset.id)" class="text-rose-600">刪除</button>
+                </div>` : '唯讀';
+            const check=isAdminMode ? `<input type="checkbox" class="procurement-check mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600" data-id="${escapeHtml(r.id)}" aria-label="選取 ${escapeHtml(r.item_no)}" onchange="toggleProcurementRow(this)" ${procurementSelected.has(r.id)?'checked':''}>` : '';
+            return `
+                <tr role="row" class="border-b align-top hover:bg-slate-50">
+                    <td role="cell" data-label="類別" class="procurement-category p-3">${escapeHtml(r.category)}</td>
+                    <td role="cell" class="procurement-item p-3">
+                        <div class="flex items-start gap-2">${check}<div class="min-w-0">
                             <strong>${escapeHtml(r.item_no)}</strong>
                             <div class="mt-1 max-w-xs whitespace-normal text-slate-500">${escapeHtml(r.item_name)}</div>
-                        </td>
-                        <td role="cell" data-label="供應商／採購單號" class="procurement-supplier p-3">
-                            ${escapeHtml(r.supplier || '—')}
-                            <div class="mt-1 text-xs text-slate-500">${escapeHtml(r.purchase_no || '')}</div>
-                        </td>
-                        <td role="cell" data-label="數量" class="procurement-quantity p-3 text-right">${Number(r.quantity).toLocaleString()}</td>
-                        <td role="cell" data-label="預計下單" class="procurement-planned p-3 whitespace-nowrap">${escapeHtml(r.planned_order_date || '—')}</td>
-                        <td role="cell" data-label="預計到貨" class="procurement-expected p-3 whitespace-nowrap ${overdue ? 'text-rose-600' : ''}">
-                            ${escapeHtml(r.expected_arrival_date || '—')}
-                            ${overdue ? '<div class="mt-1 text-xs">逾期未到貨</div>' : ''}
-                        </td>
-                        <td role="cell" data-label="實際到貨" class="procurement-actual p-3 whitespace-nowrap">${escapeHtml(r.actual_arrival_date || '—')}</td>
-                        <td role="cell" data-label="進度" class="procurement-progress p-3">${progressControl}</td>
-                        <td role="cell" data-label="備註" class="procurement-remark p-3 max-w-xs whitespace-pre-wrap break-words">${escapeHtml(r.remark || '—')}</td>
-                        <td role="cell" class="procurement-actions p-3">${rowActions}</td>
-                    </tr>`;
-            }).join('');
+                        </div></div>
+                    </td>
+                    <td role="cell" data-label="供應商／採購單號" class="procurement-supplier p-3">
+                        ${escapeHtml(r.supplier || '—')}
+                        <div class="mt-1 text-xs text-slate-500">${escapeHtml(r.purchase_no || '')}</div>
+                    </td>
+                    <td role="cell" data-label="數量" class="procurement-quantity p-3 text-right">${Number(r.quantity).toLocaleString()}</td>
+                    <td role="cell" data-label="預計下單" class="procurement-planned p-3 whitespace-nowrap">${escapeHtml(r.planned_order_date || '—')}</td>
+                    <td role="cell" data-label="預計到貨" class="procurement-expected p-3 whitespace-nowrap ${overdue ? 'text-rose-600' : ''}">
+                        ${escapeHtml(r.expected_arrival_date || '—')}
+                        ${overdue ? '<div class="mt-1 text-xs">逾期未到貨</div>' : ''}
+                    </td>
+                    <td role="cell" data-label="實際到貨" class="procurement-actual p-3 whitespace-nowrap">${escapeHtml(r.actual_arrival_date || '—')}</td>
+                    <td role="cell" data-label="進度" class="procurement-progress p-3">${progressControl}</td>
+                    <td role="cell" data-label="備註" class="procurement-remark p-3 max-w-xs whitespace-pre-wrap break-words">${escapeHtml(r.remark || '—')}</td>
+                    <td role="cell" class="procurement-actions p-3">${rowActions}</td>
+                </tr>`;
         }
 
-        async function updateProcurementSchedule(id, project, revision, fields) {
-            const ref = fbDb.collection('procurement_schedules').doc(id);
-            const changes = {
-                ...fields,
-                revision: revision + 1,
-                updated_by: fbAuth.currentUser.uid,
-                updated_at: new Date().toISOString()
-            };
-            return fbDb.runTransaction(async tx => {
-                const snapshot = await tx.get(ref);
-                const current = snapshot.data();
-                if (!snapshot.exists || current.deleted || current.project !== project) {
-                    throw new Error('排程已刪除或移至其他專案，請重新整理。');
-                }
-                if (current.revision !== revision) {
-                    throw new Error('其他人已更新這筆排程，請重新整理後再編輯。');
-                }
-                tx.update(ref, changes);
-                return { ...current, ...changes, id };
+        // ---- Selection and batch status update ----
+        function updateProcurementBatchBar() {
+            const count=procurementSelected.size;
+            const countEl=document.getElementById('procurement-selected-count');
+            if(!countEl) return;
+            countEl.textContent=`已勾選 ${count} 項`;
+            document.getElementById('procurement-batch-apply').disabled=!count || procurementSaving;
+            const all=document.getElementById('procurement-select-all');
+            all.checked=procurementVisible.length>0 && count===procurementVisible.length;
+            all.indeterminate=count>0 && count<procurementVisible.length;
+            document.querySelectorAll('.procurement-group-check').forEach(box=>{
+                const rows=procurementVisible.filter(r=>procurementGroupKey(r)===box.dataset.group);
+                const picked=rows.filter(r=>procurementSelected.has(r.id)).length;
+                box.checked=rows.length>0 && picked===rows.length;
+                box.indeterminate=picked>0 && picked<rows.length;
             });
         }
-
-        async function changeProcurementStatus(select) {
-            const project = activeProject;
-            const row = procurementRows.find(item => item.id === select.dataset.id && item.project === project);
-            if (!row) {
-                renderProcurementSchedule();
-                showError(new Error('找不到排程，請重新整理。'));
-                return;
-            }
-            const status = select.value;
-            if (procurementSaving || status === row.status || !PROCUREMENT_STATUSES.includes(status)) {
-                select.value = row.status;
-                return;
-            }
-
-            procurementSaving = true;
-            select.disabled = true;
-            try {
-                requireSignedIn(true);
-                const updated = await updateProcurementSchedule(row.id, project, row.revision, { status });
-                if (activeProject === project) {
-                    const editId = document.getElementById('procurement-id');
-                    const editRevision = document.getElementById('procurement-revision');
-                    if (procurementEditorProject === project && editId.value === row.id && Number(editRevision.value) === row.revision) {
-                        editRevision.value = updated.revision;
-                        const editStatus = document.getElementById('procurement-status');
-                        if (editStatus.value === row.status) editStatus.value = status;
-                    }
-                    if (procurementLoading) {
-                        await loadProcurementSchedule(true);
-                    } else {
-                        procurementRows = procurementRows.map(item =>
-                            item.id === row.id && item.revision <= updated.revision ? updated : item
-                        );
-                        renderProcurementSchedule();
-                    }
-                }
-                showToast(`採購進度已更新為「${status}」。`);
-            } catch (error) {
-                select.value = row.status;
-                showError(error);
-            } finally {
-                procurementSaving = false;
-                select.disabled = false;
-            }
+        function toggleProcurementRow(box) {
+            if(box.checked) procurementSelected.add(box.dataset.id); else procurementSelected.delete(box.dataset.id);
+            updateProcurementBatchBar();
+        }
+        function toggleProcurementGroup(box) {
+            procurementVisible.filter(r=>procurementGroupKey(r)===box.dataset.group).forEach(r=>box.checked ? procurementSelected.add(r.id) : procurementSelected.delete(r.id));
+            renderProcurementSchedule();
+        }
+        function toggleProcurementAllVisible(box) {
+            procurementVisible.forEach(r=>box.checked ? procurementSelected.add(r.id) : procurementSelected.delete(r.id));
+            renderProcurementSchedule();
+        }
+        function clearProcurementSelection() {
+            procurementSelected.clear();
+            renderProcurementSchedule();
+        }
+        function onProcurementBatchStatusChange() {
+            const status=document.getElementById('procurement-batch-status').value;
+            const date=document.getElementById('procurement-batch-date');
+            const arrival=['已到貨','部分到貨'].includes(status);
+            if(arrival && !date.value) {date.value=procurementToday();date.dataset.auto='1';}
+            else if(!arrival && date.dataset.auto==='1') {date.value='';date.dataset.auto='';}
         }
 
-        let procurementRowCounter = 1;
-        function addProcurementRow() {
+        // Updates several schedules in one transaction; every row must still be at the revision we loaded.
+        async function updateProcurementDocs(project, updates) {
+            if(!updates.length) return [];
+            if(updates.length>200) throw new Error('一次最多更新 200 筆，請分批操作。');
+            const now=new Date().toISOString(),uid=fbAuth.currentUser.uid;
+            return fbDb.runTransaction(async tx=>{
+                const refs=updates.map(u=>fbDb.collection('procurement_schedules').doc(u.id));
+                const snapshots=await Promise.all(refs.map(ref=>tx.get(ref)));
+                const results=[];
+                snapshots.forEach((snapshot,index)=>{
+                    const update=updates[index],current=snapshot.data();
+                    if(!snapshot.exists || current.deleted || current.project!==project) throw new Error('排程已刪除或移至其他專案，請重新整理。');
+                    if(current.revision!==update.revision) throw new Error('其他人已更新這筆排程，請重新整理後再編輯。');
+                    const changes={...update.fields,revision:update.revision+1,updated_by:uid,updated_at:now};
+                    tx.update(refs[index],changes);
+                    results.push({...current,...changes,id:update.id});
+                });
+                return results;
+            });
+        }
+        async function applyProcurementUpdates(project, previousRows, updated) {
+            if(activeProject!==project) return;
+            const editId=document.getElementById('procurement-id').value;
+            if(editId && procurementEditorProject===project) {
+                const prev=previousRows.find(r=>r.id===editId),next=updated.find(r=>r.id===editId);
+                const revision=document.getElementById('procurement-revision');
+                if(prev && next && Number(revision.value)===prev.revision) {
+                    revision.value=next.revision;
+                    const status=document.getElementById('procurement-status');
+                    if(status.value===prev.status) status.value=next.status;
+                }
+            }
+            if(procurementLoading) {await loadProcurementSchedule(true);return;}
+            const byId=new Map(updated.map(r=>[r.id,r]));
+            procurementRows=procurementRows.map(item=>{const next=byId.get(item.id);return next && item.revision<=next.revision ? next : item;});
+            renderProcurementSchedule();
+        }
+        async function changeProcurementStatus(select) {
+            const project=activeProject;
+            const row=procurementRows.find(item=>item.id===select.dataset.id && item.project===project);
+            if(!row) {renderProcurementSchedule();showError(new Error('找不到排程，請重新整理。'));return;}
+            const status=select.value;
+            if(procurementSaving || status===row.status || !PROCUREMENT_STATUSES.includes(status)) {select.value=row.status;return;}
+            procurementSaving=true;select.disabled=true;updateProcurementBatchBar();
             try {
                 requireSignedIn(true);
-                if(procurementSaving) throw new Error('正在儲存，請稍候。');
-                if(document.getElementById('procurement-id').value) throw new Error('編輯模式只修改目前這一筆，請使用新增採購排程建立其他項目。');
-                const container=document.getElementById('procurement-extra-rows');
-                if(container.querySelectorAll('.procurement-extra-row').length>=49) throw new Error('每次最多新增 50 個採購項目。');
-                const labels={item_no:'料號 *',item_name:'品名 *',category:'物料類別',supplier:'供應商',purchase_no:'採購單號',quantity:'採購數量 *',planned_order_date:'預計下單日',expected_arrival_date:'預計到貨日',actual_arrival_date:'實際到貨日',status:'採購進度',remark:'備註'};
-                const inherited=['category','supplier','purchase_no','planned_order_date','expected_arrival_date','status'];
-                const fields=PROCUREMENT_FIELDS.map(key=>{
-                    const value=inherited.includes(key) ? document.getElementById('procurement-'+key).value : key==='quantity' ? '1' : '';
-                    const attr=`data-key="${key}" class="procurement-value mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"`;
-                    let control;
-                    if(key==='category' || key==='status') {
-                        const options=key==='category' ? MATERIAL_CATEGORIES : PROCUREMENT_STATUSES;
-                        control=`<select ${attr}>${options.map(option=>`<option ${option===value?'selected':''}>${escapeHtml(option)}</option>`).join('')}</select>`;
-                    } else if(key==='remark') control=`<textarea ${attr} maxlength="2000" rows="2"></textarea>`;
-                    else control=`<input ${attr} type="${key==='quantity'?'number':key.endsWith('_date')?'date':'text'}" ${['item_no','item_name','quantity'].includes(key)?'required':''} ${key==='quantity'?'min="0.000001" max="1000000000000" step="any"':`maxlength="${['item_no','purchase_no'].includes(key)?100:200}"`} value="${escapeHtml(value)}">`;
-                    return `<label class="block text-sm text-slate-600 ${key==='remark'?'sm:col-span-2':''}">${labels[key]}${control}</label>`;
-                }).join('');
-                container.insertAdjacentHTML('beforeend',`<fieldset class="procurement-extra-row rounded-xl border border-slate-200 bg-slate-50 p-4"><legend class="px-2 text-sm font-bold">採購項目 #${++procurementRowCounter}</legend><div class="mb-3 text-right"><button type="button" onclick="this.closest('fieldset').remove()" class="text-sm text-rose-600">移除此項</button></div><div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">${fields}</div></fieldset>`);
+                const updated=await updateProcurementDocs(project,[{id:row.id,revision:row.revision,fields:{status}}]);
+                await applyProcurementUpdates(project,[row],updated);
+                showToast(`採購進度已更新為「${status}」。`);
+            } catch(error) {
+                select.value=row.status;showError(error);
+            } finally {
+                procurementSaving=false;select.disabled=false;updateProcurementBatchBar();
+            }
+        }
+        async function applyProcurementBatch() {
+            if(procurementSaving) return;
+            const project=activeProject;
+            try {
+                requireSignedIn(true);
+                const status=document.getElementById('procurement-batch-status').value;
+                const date=document.getElementById('procurement-batch-date').value;
+                if(!PROCUREMENT_STATUSES.includes(status)) throw new Error('請先選擇要改成的採購進度。');
+                const rows=procurementRows.filter(r=>procurementSelected.has(r.id) && !r.deleted && r.project===project);
+                if(!rows.length) throw new Error('請先勾選要更新的採購項目。');
+                const fields={status};if(date) fields.actual_arrival_date=date;
+                const updates=rows.map(r=>{validateProcurementSchedule({...r,...fields},project);return {id:r.id,revision:r.revision,fields};});
+                if(rows.length>1 && !confirm(`確定將已勾選的 ${rows.length} 項採購排程改為「${status}」${date?`，實際到貨日 ${date}`:''}？`)) return;
+                procurementSaving=true;updateProcurementBatchBar();
+                const updated=await updateProcurementDocs(project,updates);
+                if(activeProject===project) procurementSelected.clear();
+                await applyProcurementUpdates(project,rows,updated);
+                showToast(`已將 ${rows.length} 項採購排程改為「${status}」。`);
             } catch(error) {showError(error);}
+            finally {procurementSaving=false;updateProcurementBatchBar();}
         }
 
         async function saveProcurementSchedule(event) {
@@ -2753,27 +2946,41 @@
                 requireSignedIn(true);
                 const project=procurementEditorProject;
                 if(!project || project!==activeProject) throw new Error('專案已切換，請重新開啟排程表單。');
-                const raw={};for(const key of PROCUREMENT_FIELDS) raw[key]=document.getElementById('procurement-'+key).value;
+                const header={};for(const key of PROCUREMENT_SHARED_FIELDS) header[key]=document.getElementById('procurement-'+key).value;
                 const id=document.getElementById('procurement-id').value,revision=Number(document.getElementById('procurement-revision').value);
-                const rawRows=[raw];
-                if(!id) for(const row of document.querySelectorAll('#procurement-extra-rows .procurement-extra-row')) {
-                    const extra={};for(const field of row.querySelectorAll('.procurement-value')) extra[field.dataset.key]=field.value;
-                    rawRows.push(extra);
-                }
-                if(rawRows.length>50) throw new Error('每次最多新增 50 個採購項目。');
-                const entries=rawRows.map((value,index)=>{try{return validateProcurementSchedule(value,project);}catch(error){throw new Error(`第 ${index+1} 項：${error.message}`);}});
-                const data=entries[0];
-                if(id) await updateProcurementSchedule(id,project,revision,data);
-                else {
+                const rowEls=[...document.querySelectorAll('#procurement-item-rows .procurement-item-row')];
+                if(!rowEls.length) throw new Error('請至少填寫一個採購項目。');
+                if(rowEls.length>50) throw new Error('每次最多新增 50 個採購項目。');
+                const entries=rowEls.map((rowEl,index)=>{
+                    const item={};for(const field of rowEl.querySelectorAll('.procurement-value')) item[field.dataset.key]=field.value;
+                    try {return validateProcurementSchedule({...header,...item},project);}
+                    catch(error) {throw new Error(`第 ${index+1} 項：${error.message}`);}
+                });
+                let updatedCount=1;
+                if(id) {
+                    const updates=[{id,revision,fields:entries[0]}];
+                    if(document.getElementById('procurement-apply-group').checked) {
+                        const shared=Object.fromEntries(PROCUREMENT_SHARED_FIELDS.map(key=>[key,entries[0][key]]));
+                        for(const otherId of procurementEditGroupIds) {
+                            const other=procurementRows.find(r=>r.id===otherId && !r.deleted);
+                            if(!other) continue;
+                            validateProcurementSchedule({...other,...shared},project);
+                            updates.push({id:other.id,revision:other.revision,fields:shared});
+                        }
+                    }
+                    await updateProcurementDocs(project,updates);
+                    updatedCount=updates.length;
+                } else {
                     const now=new Date().toISOString(),uid=fbAuth.currentUser.uid;
                     const batch=fbDb.batch();
                     for(const entry of entries) batch.set(fbDb.collection('procurement_schedules').doc(),{...entry,revision:1,deleted:false,created_by:uid,created_at:now,updated_by:uid,updated_at:now});
                     await batch.commit();
                 }
                 if(activeProject===project) {closeProcurementEditor();await loadProcurementSchedule(true);}
-                showToast(id ? '採購排程已更新。' : `已新增 ${entries.length} 筆採購排程。`);
+                showToast(id ? (updatedCount>1 ? `已更新同一張單的 ${updatedCount} 筆採購排程。` : '採購排程已更新。') : `已新增 ${entries.length} 筆採購排程。`);
             } catch(error) {showError(error);} finally {procurementSaving=false;button.disabled=false;}
         }
+        document.getElementById('procurement-form').addEventListener('change',handleProcurementFormChange);
         async function deleteProcurementSchedule(id) {
             try {
                 requireSignedIn(true);
@@ -2787,7 +2994,7 @@
                     if(snapshot.data().revision!==row.revision || snapshot.data().project!==project) throw new Error('排程已被更新，請重新整理後再操作。');
                     tx.update(ref,{deleted:true,revision:row.revision+1,updated_by:fbAuth.currentUser.uid,updated_at:new Date().toISOString()});
                 });
-                if(activeProject===project) {if(document.getElementById('procurement-id').value===id) closeProcurementEditor();procurementRows=procurementRows.filter(r=>r.id!==id);renderProcurementSchedule();}
+                if(activeProject===project) {if(document.getElementById('procurement-id').value===id) closeProcurementEditor();procurementSelected.delete(id);procurementRows=procurementRows.filter(r=>r.id!==id);renderProcurementSchedule();}
                 showToast('採購排程已刪除。');
             } catch(error) {showError(error);}
         }
