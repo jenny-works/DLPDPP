@@ -1614,18 +1614,42 @@
             finally { btn.disabled = false; }
         }
 
+        // 直接以 Firestore 文件 ID 刪除；同專案、同料號的重複項目（ID 不同）會一併刪除，避免刪掉後又冒出一筆
+        async function removeBomDocs(ids) {
+            requireSignedIn(true);
+            const normalize = v => String(v || '').trim().normalize('NFKC').toLowerCase();
+            const selected = ids.map(id => bomList.find(b => String(b.id) === String(id))).filter(Boolean);
+            const targets = new Map(ids.map(id => [String(id), fbDb.collection('bom').doc(String(id))]));
+            for (const project of new Set(selected.map(b => b.project || ''))) {
+                const docs = await getAllQueryDocs(fbDb.collection('bom').where('project', '==', project), 400);
+                const keys = new Set(selected.filter(b => (b.project || '') === project).map(b => normalize(b.item_no)));
+                docs.forEach(d => { if (keys.has(normalize(d.data().item_no))) targets.set(d.id, d.ref); });
+            }
+            const refs = [...targets.values()];
+            for (let i = 0; i < refs.length; i += 400) {
+                const batch = fbDb.batch();
+                refs.slice(i, i + 400).forEach(ref => batch.delete(ref));
+                await batch.commit();
+            }
+            try { await audit('delete', 'bom_requirement', `${refs.length} items`, { ids: refs.slice(0, 20).map(r => r.id) }); } catch (e) { console.warn('audit failed', e); }
+            return refs.length;
+        }
+        function bomDeleteError(error) {
+            return new Error(`BOM 刪除失敗${error?.code ? `（${error.code}）` : ''}：${error?.message || error}`);
+        }
+
         async function deleteBomItem(id) {
             if (!confirm('確定要刪除這筆 BOM 需求嗎？')) return;
-            try { await api(`/api/bom/${encodeURIComponent(id)}`, {method:'DELETE'}); }
-            catch(err) { showError(err); }
+            try { const n = await removeBomDocs([id]); showToast(`已刪除 ${n} 筆 BOM。`); }
+            catch(err) { showError(bomDeleteError(err)); }
         }
 
         async function deleteSelectedBomItems() {
             const boxes = document.querySelectorAll('.bom-checkbox:checked');
             if (!boxes.length) { alert('請先勾選要刪除的 BOM 項目！'); return; }
             if (!confirm(`確定要刪除選取的 ${boxes.length} 筆 BOM 需求嗎？`)) return;
-            try { for (const box of boxes) await api(`/api/bom/${encodeURIComponent(box.value)}`, {method:'DELETE'}); }
-            catch(err) { showError(err); }
+            try { const n = await removeBomDocs([...boxes].map(box => box.value)); showToast(`已刪除 ${n} 筆 BOM。`); }
+            catch(err) { showError(bomDeleteError(err)); }
         }
 
         function toggleSelectAllRecords(master) {
