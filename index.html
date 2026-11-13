@@ -543,6 +543,10 @@
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         <span>刪除</span>
                     </button>
+                    <button onclick="cleanupDuplicateBom()" class="admin-only hidden px-3 py-2 border border-amber-300 hover:bg-amber-50 text-amber-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition" title="同專案、同料號只保留最近更新的一筆">
+                        <i data-lucide="copy-minus" class="w-3.5 h-3.5"></i>
+                        <span>清理重複項目</span>
+                    </button>
                 </div>
             </div>
 
@@ -1614,18 +1618,10 @@
             finally { btn.disabled = false; }
         }
 
-        // 直接以 Firestore 文件 ID 刪除；同專案、同料號的重複項目（ID 不同）會一併刪除，避免刪掉後又冒出一筆
+        // 只刪除被選取的文件（以 Firestore 文件 ID 直接刪除）
         async function removeBomDocs(ids) {
             requireSignedIn(true);
-            const normalize = v => String(v || '').trim().normalize('NFKC').toLowerCase();
-            const selected = ids.map(id => bomList.find(b => String(b.id) === String(id))).filter(Boolean);
-            const targets = new Map(ids.map(id => [String(id), fbDb.collection('bom').doc(String(id))]));
-            for (const project of new Set(selected.map(b => b.project || ''))) {
-                const docs = await getAllQueryDocs(fbDb.collection('bom').where('project', '==', project), 400);
-                const keys = new Set(selected.filter(b => (b.project || '') === project).map(b => normalize(b.item_no)));
-                docs.forEach(d => { if (keys.has(normalize(d.data().item_no))) targets.set(d.id, d.ref); });
-            }
-            const refs = [...targets.values()];
+            const refs = [...new Set(ids.map(String))].map(id => fbDb.collection('bom').doc(id));
             for (let i = 0; i < refs.length; i += 400) {
                 const batch = fbDb.batch();
                 refs.slice(i, i + 400).forEach(ref => batch.delete(ref));
@@ -1633,6 +1629,32 @@
             }
             try { await audit('delete', 'bom_requirement', `${refs.length} items`, { ids: refs.slice(0, 20).map(r => r.id) }); } catch (e) { console.warn('audit failed', e); }
             return refs.length;
+        }
+        // 找出同專案、同料號的重複 BOM，保留最近更新的一筆，其餘刪除
+        async function cleanupDuplicateBom() {
+            try {
+                requireSignedIn(true);
+                if (!activeProject) throw new Error('請先開啟專案。');
+                const normalize = v => String(v || '').trim().normalize('NFKC').toLowerCase();
+                const groups = new Map();
+                bomList.filter(b => (b.project || '').trim() === activeProject).forEach(b => {
+                    const key = normalize(b.item_no);
+                    if (!groups.has(key)) groups.set(key, []);
+                    groups.get(key).push(b);
+                });
+                const stamp = b => String(b.updated_at || b.created_at || '');
+                const removeIds = [], samples = [];
+                groups.forEach(list => {
+                    if (list.length < 2) return;
+                    list.sort((x, y) => stamp(y).localeCompare(stamp(x)));
+                    list.slice(1).forEach(b => removeIds.push(b.id));
+                    if (samples.length < 5) samples.push(`${list[0].item_no}（${list.length} 筆）`);
+                });
+                if (!removeIds.length) { showToast('沒有發現重複的 BOM 項目。'); return; }
+                if (!confirm(`發現 ${removeIds.length} 筆重複的 BOM（${samples.join('、')}${groups.size > 5 ? ' 等' : ''}）。\n每組只保留最近更新的一筆，其餘刪除，是否繼續？`)) return;
+                const n = await removeBomDocs(removeIds);
+                showToast(`已清理 ${n} 筆重複 BOM。`);
+            } catch (err) { showError(bomDeleteError(err)); }
         }
         function bomDeleteError(error) {
             return new Error(`BOM 刪除失敗${error?.code ? `（${error.code}）` : ''}：${error?.message || error}`);
