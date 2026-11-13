@@ -543,10 +543,6 @@
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         <span>刪除</span>
                     </button>
-                    <button onclick="cleanupDuplicateBom()" class="admin-only hidden px-3 py-2 border border-amber-300 hover:bg-amber-50 text-amber-700 rounded-lg text-xs font-medium flex items-center space-x-1 transition" title="同專案、同料號只保留最近更新的一筆">
-                        <i data-lucide="copy-minus" class="w-3.5 h-3.5"></i>
-                        <span>清理重複項目</span>
-                    </button>
                 </div>
             </div>
 
@@ -837,7 +833,7 @@
             document.getElementById('project-home').classList.remove('hidden');
             document.getElementById('workspace-header-actions').classList.add('hidden');
             fbDb.collection('project_summaries').get().then(s => {
-                projectSummaries = s.docs.map(d=>({id:d.id,...d.data()}));
+                projectSummaries = s.docs.map(d=>({ ...d.data(), id: d.id}));
                 renderProjectOverview();
                 if(resume.get('view')==='project' && projectSummaries.some(p=>p.project===resume.get('project'))) {
                     openProjectOverview(resume.get('project'));
@@ -882,7 +878,7 @@
             const cursor = recordPageCursors[recordPageNumber - 1] || null;
             if (cursor) query = query.startAfter(cursor);
             stopRecordsListener = query.limit(RECORDS_PAGE_SIZE).onSnapshot(snapshot => {
-                records = snapshot.docs.map(d => ({ id: d.id, ...d.data(), attachment_url: d.data().attachment_data_url || '' }));
+                records = snapshot.docs.map(d => ({ ...d.data(), id: d.id, attachment_url: d.data().attachment_data_url || '' }));
                 recordPageLastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
                 recordHasNext = snapshot.size === RECORDS_PAGE_SIZE;
                 if (snapshot.size === 0 && recordPageNumber > 1) {
@@ -1189,7 +1185,7 @@
 
         async function refreshProjectOverview() {
             const snapshot = await fbDb.collection('project_summaries').get();
-            projectSummaries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            projectSummaries = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
             renderProjectOverview();
         }
 
@@ -1208,7 +1204,7 @@
         function ensureInventorySummaryListener() {
             if (!activeProject || stopInventorySummaryListener) return;
             stopInventorySummaryListener = fbDb.collection('inventory_summary').where('project', '==', activeProject).onSnapshot(s => {
-                inventorySummaries = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                inventorySummaries = s.docs.map(d => ({ ...d.data(), id: d.id }));
                 renderStockTable(); renderBomTable();
             }, showError);
         }
@@ -1216,7 +1212,7 @@
         function ensureBomListener() {
             if (!activeProject || stopBomListener) return;
             stopBomListener = fbDb.collection('bom').where('project', '==', activeProject).onSnapshot(s => {
-                bomList = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                bomList = s.docs.map(d => ({ ...d.data(), id: d.id }));
                 updateBomProjectDropdown(); renderBomTable();
             }, showError);
         }
@@ -1234,7 +1230,7 @@
             document.getElementById('project-home').classList.remove('hidden');
             document.getElementById('workspace-header-actions').classList.add('hidden');
             fbDb.collection('project_summaries').get().then(s => {
-                projectSummaries = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                projectSummaries = s.docs.map(d => ({ ...d.data(), id: d.id }));
                 renderProjectOverview();
             }).catch(showError);
         }
@@ -1324,7 +1320,7 @@
                 }
                 await metaRef.set({ ready: true, record_count: docs.length, updated_at: new Date().toISOString() }, { merge: true });
                 const projectSnapshot = await fbDb.collection('project_summaries').get();
-                projectSummaries = projectSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                projectSummaries = projectSnapshot.docs.map(d => ({ ...d.data(), id: d.id }));
                 renderProjectOverview();
                 showToast(`統計索引建立完成：讀取 ${docs.length} 筆既有明細。`);
             } catch (err) { showError(err); }
@@ -1373,7 +1369,7 @@
                 const ref=col.doc(key); if(method==='PUT'){requireSignedIn(true);requireSummaryReady();const d=cleanRecord(body),oldSnap=await ref.get();if(!oldSnap.exists)throw new Error('找不到要編輯的明細。');const old=oldSnap.data();d.updated_at=new Date().toISOString();const batch=fbDb.batch();batch.set(ref,d,{merge:true});batch.set(fbDb.collection('items').doc(encodeURIComponent(d.item_no)),{item_no:d.item_no,item_name:d.item_name,updated_by:d.updated_by,updated_at:d.updated_at},{merge:true});queueSummaryDeltas(batch,createSummaryDeltaMap(old,d));await batch.commit();recordSearchRecords=null;recordSearchCacheProject='';await audit('update','inventory_record',key,d);return {ok:true};} if(method==='DELETE'){requireSignedIn(true);requireSummaryReady();const snap=await ref.get();if(!snap.exists)throw new Error('找不到要刪除的明細。');const batch=fbDb.batch();batch.delete(ref);queueSummaryDeltas(batch,createSummaryDeltaMap(snap.data(),null));await batch.commit();recordSearchRecords=null;recordSearchCacheProject='';await audit('delete','inventory_record',key);return {ok:true};}
             }
             if(p[1]==='bom'){
-                const col=fbDb.collection('bom'); if(method==='GET'){const docs=await getAllQueryDocs(col.orderBy('project'));return {bomList:docs.map(d=>({id:d.id,...d.data()}))};}
+                const col=fbDb.collection('bom'); if(method==='GET'){const docs=await getAllQueryDocs(col.orderBy('project'));return {bomList:docs.map(d=>({ ...d.data(), id: d.id}))};}
                 if(method==='POST'){requireSignedIn(true);const rows=Array.isArray(body)?body:[body];if(!rows.length||rows.length>5000)throw new Error('單次最多匯入 5,000 筆 BOM');for(let i=0;i<rows.length;i+=150){const batch=fbDb.batch(),projects=new Set();for(const raw of rows.slice(i,i+150)){const b=cleanBom(raw);const id=raw.id?String(raw.id):encodeURIComponent(`${b.project}__${b.item_no}`);const ref=col.doc(id);batch.set(ref,{...b,created_at:new Date().toISOString()},{merge:true});batch.set(fbDb.collection('items').doc(encodeURIComponent(b.item_no)),{item_no:b.item_no,item_name:b.item_name,updated_by:b.updated_by,updated_at:new Date().toISOString()},{merge:true});if(b.project)projects.add(b.project);}projects.forEach(project=>batch.set(fbDb.collection('project_summaries').doc(projectSummaryId(project)),{project},{merge:true}));await batch.commit();}return {ok:true};}
                 const ref=col.doc(key);if(method==='PUT'){requireSignedIn(true);const b=cleanBom(body);await ref.set({...b,updated_at:new Date().toISOString()},{merge:true});if(b.project)await fbDb.collection('project_summaries').doc(projectSummaryId(b.project)).set({project:b.project},{merge:true});await audit('update','bom_requirement',key,b);return {ok:true};}if(method==='DELETE'){requireSignedIn(true);await ref.delete();await audit('delete','bom_requirement',key);return {ok:true};}
             }
@@ -1408,9 +1404,9 @@
                     app: '入出庫明細管理系統',
                     schemaVersion: 2,
                     exportedAt: new Date().toISOString(),
-                    records: rs.docs.map(d=>({id:d.id,...d.data()})),
-                    bomList: bs.docs.map(d=>({id:d.id,...d.data()})),
-                    procurementSchedules: ps.docs.map(d=>({id:d.id,...d.data()})),
+                    records: rs.docs.map(d=>({ ...d.data(), id: d.id})),
+                    bomList: bs.docs.map(d=>({ ...d.data(), id: d.id})),
+                    procurementSchedules: ps.docs.map(d=>({ ...d.data(), id: d.id})),
                     manualProjects: projects.docs.map(d=>d.data().project)
                 };
             }
@@ -1502,7 +1498,7 @@
                 const type = document.getElementById('filter-type').value;
                 const startDate = document.getElementById('filter-date-start').value;
                 const endDate = document.getElementById('filter-date-end').value;
-                targetRecords = docs.map(d => ({ id: d.id, ...d.data() })).filter(r => {
+                targetRecords = docs.map(d => ({ ...d.data(), id: d.id })).filter(r => {
                     const matchSearch = !search || [r.item_no, r.item_name, r.project, r.counterparty, r.reference_no, r.remark].some(v => String(v || '').toLowerCase().includes(search));
                     return matchSearch && (type === 'ALL' || r.type === type) && (!startDate || r.date >= startDate) && (!endDate || r.date <= endDate);
                 });
@@ -1629,32 +1625,6 @@
             }
             try { await audit('delete', 'bom_requirement', `${refs.length} items`, { ids: refs.slice(0, 20).map(r => r.id) }); } catch (e) { console.warn('audit failed', e); }
             return refs.length;
-        }
-        // 找出同專案、同料號的重複 BOM，保留最近更新的一筆，其餘刪除
-        async function cleanupDuplicateBom() {
-            try {
-                requireSignedIn(true);
-                if (!activeProject) throw new Error('請先開啟專案。');
-                const normalize = v => String(v || '').trim().normalize('NFKC').toLowerCase();
-                const groups = new Map();
-                bomList.filter(b => (b.project || '').trim() === activeProject).forEach(b => {
-                    const key = normalize(b.item_no);
-                    if (!groups.has(key)) groups.set(key, []);
-                    groups.get(key).push(b);
-                });
-                const stamp = b => String(b.updated_at || b.created_at || '');
-                const removeIds = [], samples = [];
-                groups.forEach(list => {
-                    if (list.length < 2) return;
-                    list.sort((x, y) => stamp(y).localeCompare(stamp(x)));
-                    list.slice(1).forEach(b => removeIds.push(b.id));
-                    if (samples.length < 5) samples.push(`${list[0].item_no}（${list.length} 筆）`);
-                });
-                if (!removeIds.length) { showToast('沒有發現重複的 BOM 項目。'); return; }
-                if (!confirm(`發現 ${removeIds.length} 筆重複的 BOM（${samples.join('、')}${groups.size > 5 ? ' 等' : ''}）。\n每組只保留最近更新的一筆，其餘刪除，是否繼續？`)) return;
-                const n = await removeBomDocs(removeIds);
-                showToast(`已清理 ${n} 筆重複 BOM。`);
-            } catch (err) { showError(bomDeleteError(err)); }
         }
         function bomDeleteError(error) {
             return new Error(`BOM 刪除失敗${error?.code ? `（${error.code}）` : ''}：${error?.message || error}`);
@@ -2003,7 +1973,7 @@
                     const query = fbDb.collection('records').where('project', '==', activeProject).orderBy('date', 'desc');
                     const docs = await getAllQueryDocs(query, 400);
                     if (requestId !== recordSearchRequestId || activeProject !== document.getElementById('filter-record-project').value) return;
-                    recordSearchRecords = docs.map(d => ({ id: d.id, ...d.data(), attachment_url: d.data().attachment_data_url || '' }));
+                    recordSearchRecords = docs.map(d => ({ ...d.data(), id: d.id, attachment_url: d.data().attachment_data_url || '' }));
                     recordSearchCacheProject = activeProject;
                     recordSearchPageNumber = 1; applyFilters(); updateRecordPagination();
                 } catch (error) { showError(error); updateRecordPagination(); }
