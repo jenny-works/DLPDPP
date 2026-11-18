@@ -2457,7 +2457,7 @@
                     }).join('');
                     if(lastPage && chunk.length===6) rows+='<tr class="blank-marker"><td colspan="9">以下空白</td></tr>';
                     const notes=[d.project ? '專案：'+d.project : '',d.remark || ''].filter(Boolean).join('\n');
-                    pages.push(`<section class="sheet ${d.kind === 'DELIVERY' ? 'delivery-sheet' : ''}"><header><div class="print-export-title">大 笠 新 技 股 份 有 限 公 司</div><h1>${escapeHtml(dispatchKindLabel(d.kind))}</h1><div class="date">單據日期：${escapeHtml(d.date)}</div></header><div class="headfields"><div>出貨單號：${no}</div><div>銷貨單號：</div><div>客戶代號：${escapeHtml(d.counterparty || '')}</div><div></div><div>發票地址：</div><div></div><div>送貨地址：</div><div>單據幣別：</div></div><table><colgroup><col style="width:12%"><col style="width:16%"><col style="width:25%"><col style="width:11%"><col style="width:5%"><col style="width:5%"><col style="width:6%"><col style="width:7%"><col style="width:13%"></colgroup><thead><tr>${['客戶訂單號碼','料件編號','料件名稱','料件規格','數量','單位','單價','外幣小計','本幣小計'].map(label=>`<th>${label}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table><div class="bottom"><div class="notes">備註：${escapeHtml(notes)}</div><div class="totals">5% Tax：<br><br>Total：</div></div><div class="print-signoff"><footer><span>客戶：</span><span>主管：</span><span>倉庫：</span><span>製單人：</span></footer><div class="page-no">第 ${Math.floor(offset/6)+1}／${Math.ceil(items.length/6)} 頁</div></div></section>`);
+                    pages.push(`<section class="sheet ${d.kind === 'DELIVERY' ? 'delivery-sheet' : ''}"><header><div class="print-export-title">DL</div><h1>${escapeHtml(dispatchKindLabel(d.kind))}</h1><div class="date">單據日期：${escapeHtml(d.date)}</div></header><div class="headfields"><div>出貨單號：${no}</div><div>銷貨單號：</div><div>客戶代號：${escapeHtml(d.counterparty || '')}</div><div></div><div>發票地址：</div><div></div><div>送貨地址：</div><div>單據幣別：</div></div><table><colgroup><col style="width:12%"><col style="width:16%"><col style="width:25%"><col style="width:11%"><col style="width:5%"><col style="width:5%"><col style="width:6%"><col style="width:7%"><col style="width:13%"></colgroup><thead><tr>${['客戶訂單號碼','料件編號','料件名稱','料件規格','數量','單位','單價','外幣小計','本幣小計'].map(label=>`<th>${label}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table><div class="bottom"><div class="notes">備註：${escapeHtml(notes)}</div><div class="totals">5% Tax：<br><br>Total：</div></div><div class="print-signoff"><footer><span>客戶：</span><span>主管：</span><span>倉庫：</span><span>製單人：</span></footer><div class="page-no">第 ${Math.floor(offset/6)+1}／${Math.ceil(items.length/6)} 頁</div></div></section>`);
                 }
             }
             return `<!doctype html><html lang="zh-Hant"><head><meta charset="UTF-8"><title>單據匯出</title><style>@page{size:215.9mm 139.8mm;margin:4mm}*{box-sizing:border-box}body{margin:0;color:#000;font:9pt 'PingFang TC','Microsoft JhengHei',sans-serif}.toolbar{padding:12px;background:#eef2ff}.export-preview-title{font-size:26pt;font-weight:700;line-height:1.3;margin:0 0 12px;text-align:center}.sheet{width:207.9mm;min-height:0;page-break-after:always}.sheet:last-child{page-break-after:auto}header{position:relative;text-align:center;height:24mm;border-bottom:3px double #000}.print-export-title{font-size:18pt;font-weight:700;line-height:1.2;margin:0 0 3mm;text-align:center}h1{font-size:18pt;font-weight:700;line-height:1.15;letter-spacing:8px;margin:0}.delivery-sheet .print-export-title{font-size:18pt}.delivery-sheet h1{font-size:18pt}.date{position:absolute;right:3mm;bottom:3mm}.headfields{display:grid;grid-template-columns:3fr 1fr;gap:0.5mm;padding:1mm 0;height:22mm}table{width:100%;border-collapse:collapse;table-layout:fixed}th{height:7mm;border-bottom:3px double #000;font-weight:normal}td{height:7.5mm;vertical-align:middle;text-align:center;padding:1mm 0.5mm;overflow-wrap:anywhere;font-size:9pt}th{text-align:center;font-size:8.5pt}.blank-marker td{height:4mm;padding:0.5mm;font-size:9pt;letter-spacing:2px}.bottom{display:flex;min-height:12mm;border-top:1px dashed #000;padding-top:1mm}.notes{width:80%;white-space:pre-wrap;overflow-wrap:anywhere}.totals{width:20%;padding-left:8mm}footer{border-top:2px dashed #000;display:flex;justify-content:space-between;padding-top:1mm;height:7mm}footer span{width:25%}.print-signoff{break-inside:avoid;page-break-inside:avoid}.page-no{text-align:right;font-size:8px;line-height:3mm;margin:0}tr{break-inside:avoid;page-break-inside:avoid}@media print{.toolbar{display:none}body{margin:0}}@media screen{body{background:#e5e7eb}.sheet{background:white;margin:12px auto;padding:0}}</style></head><body><div class="toolbar">請使用瀏覽器列印功能，目的地選「另存為 PDF」；紙張請選與範本相同的自訂格式（215.9 × 139.8 公釐），比例 100%，關閉頁首頁尾。<button onclick="window.print()">列印／另存為 PDF</button></div>${pages.join('')}</body></html>`;
@@ -2602,6 +2602,10 @@
         // Items on the same purchase order that arrive on the same expected date form one group.
         function procurementGroupKey(r) {
             return r.purchase_no ? JSON.stringify([r.supplier || '', r.purchase_no, r.expected_arrival_date || '']) : '';
+        }
+        // 清單分類鍵：只看採購單號（不分大小寫、忽略前後空白）；未填單號者歸為同一組
+        function procurementPoKey(r) {
+            return String(r.purchase_no || '').trim().normalize('NFKC').toLowerCase();
         }
         function procurementToday() {
             const parts = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
@@ -2773,40 +2777,44 @@
             const filter=document.getElementById('procurement-status-filter').value;
             const visible=rows.filter(r=>(!search || [r.item_no,r.item_name,r.supplier,r.purchase_no,r.remark,r.category].some(v=>String(v || '').toLowerCase().includes(search))) && (filter==='ALL' || (filter==='OVERDUE' ? procurementIsOverdue(r,today) : r.status===filter)));
 
-            // Group rows of the same purchase order + expected arrival date; keep un-numbered rows standalone.
+            // 依採購單號分類；未填單號的項目集中在最後一組
             const units=[],byKey=new Map();
             visible.forEach(r=>{
-                const key=procurementGroupKey(r);
-                if(!key) {units.push({key:'',rows:[r]});return;}
+                const key=procurementPoKey(r);
                 let unit=byKey.get(key);
                 if(!unit) {unit={key,rows:[]};byKey.set(key,unit);units.push(unit);}
                 unit.rows.push(r);
             });
             const unitDate=unit=>unit.rows.reduce((min,r)=>{const d=r.expected_arrival_date || r.planned_order_date || '9999';return d<min?d:min;},'9999');
             const unitArrived=unit=>unit.rows.every(r=>r.status==='已到貨');
-            units.forEach(unit=>unit.rows.sort((a,b)=>a.item_no.localeCompare(b.item_no)));
-            units.sort((a,b)=>(Number(unitArrived(a))-Number(unitArrived(b))) || unitDate(a).localeCompare(unitDate(b)) || a.rows[0].item_no.localeCompare(b.rows[0].item_no));
+            units.forEach(unit=>unit.rows.sort((a,b)=>(a.expected_arrival_date||'9999').localeCompare(b.expected_arrival_date||'9999') || a.item_no.localeCompare(b.item_no)));
+            units.sort((a,b)=>(Number(!a.key)-Number(!b.key)) || (Number(unitArrived(a))-Number(unitArrived(b))) || unitDate(a).localeCompare(unitDate(b)) || a.key.localeCompare(b.key));
             procurementVisible=units.flatMap(unit=>unit.rows);
             const visibleIds=new Set(procurementVisible.map(r=>r.id));
             procurementSelected=new Set([...procurementSelected].filter(id=>visibleIds.has(id)));
 
-            document.getElementById('procurement-load-status').textContent=procurementLoading ? '正在載入採購排程…' : procurementLoadedProject===activeProject ? `${activeProject} · 共 ${rows.length} 筆，符合 ${visible.length} 筆 · 同單同到貨日自動分組，已到貨排在最下方` : '開啟頁籤後載入排程。';
+            document.getElementById('procurement-load-status').textContent=procurementLoading ? '正在載入採購排程…' : procurementLoadedProject===activeProject ? `${activeProject} · 共 ${rows.length} 筆，符合 ${visible.length} 筆 · 依採購單號分類，已全數到貨的單排在後面` : '開啟頁籤後載入排程。';
             document.getElementById('procurement-table-body').innerHTML=units.map(unit=>{
-                const header=unit.key && unit.rows.length>1 ? renderProcurementGroupHeader(unit) : '';
+                const header=renderProcurementGroupHeader(unit);
                 return header+unit.rows.map(r=>renderProcurementRow(r,today)).join('');
             }).join('');
             updateProcurementBatchBar();
         }
         function renderProcurementGroupHeader(unit) {
-            const first=unit.rows[0],arrived=unit.rows.filter(r=>r.status==='已到貨').length;
+            const rows=unit.rows,arrived=rows.filter(r=>r.status==='已到貨').length;
+            const suppliers=[...new Set(rows.map(r=>r.supplier).filter(Boolean))];
+            const dates=[...new Set(rows.map(r=>r.expected_arrival_date).filter(Boolean))].sort();
+            const dateText=!dates.length ? '—' : dates.length===1 ? dates[0] : `${dates[0]} ～ ${dates[dates.length-1]}`;
+            const title=unit.key ? escapeHtml(rows[0].purchase_no) : '未填採購單號';
             const check=isAdminMode ? `<label class="inline-flex items-center gap-2 text-xs font-medium text-indigo-700"><input type="checkbox" class="procurement-group-check h-4 w-4 rounded border-slate-300 text-indigo-600" data-group="${escapeHtml(unit.key)}" onchange="toggleProcurementGroup(this)">整張單</label>` : '';
             return `<tr role="row" class="procurement-group border-b bg-indigo-50/70">
                 <td role="cell" colspan="10" class="p-3">
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
                         ${check}
-                        <strong class="text-slate-800">${escapeHtml(first.supplier || '未填供應商')} · ${escapeHtml(first.purchase_no)}</strong>
-                        <span class="text-xs text-slate-600">預計到貨 ${escapeHtml(first.expected_arrival_date || '—')}</span>
-                        <span class="text-xs text-slate-500">${unit.rows.length} 項 · 已到貨 ${arrived}/${unit.rows.length}</span>
+                        <strong class="text-slate-800">${unit.key ? '採購單號 ' : ''}${title}</strong>
+                        <span class="text-xs text-slate-600">供應商 ${escapeHtml(suppliers.join('、') || '未填')}</span>
+                        <span class="text-xs text-slate-600">預計到貨 ${escapeHtml(dateText)}</span>
+                        <span class="text-xs text-slate-500">${rows.length} 項 · 已到貨 ${arrived}/${rows.length}</span>
                     </div>
                 </td>
             </tr>`;
@@ -2861,7 +2869,7 @@
             all.checked=procurementVisible.length>0 && count===procurementVisible.length;
             all.indeterminate=count>0 && count<procurementVisible.length;
             document.querySelectorAll('.procurement-group-check').forEach(box=>{
-                const rows=procurementVisible.filter(r=>procurementGroupKey(r)===box.dataset.group);
+                const rows=procurementVisible.filter(r=>procurementPoKey(r)===box.dataset.group);
                 const picked=rows.filter(r=>procurementSelected.has(r.id)).length;
                 box.checked=rows.length>0 && picked===rows.length;
                 box.indeterminate=picked>0 && picked<rows.length;
@@ -2872,7 +2880,7 @@
             updateProcurementBatchBar();
         }
         function toggleProcurementGroup(box) {
-            procurementVisible.filter(r=>procurementGroupKey(r)===box.dataset.group).forEach(r=>box.checked ? procurementSelected.add(r.id) : procurementSelected.delete(r.id));
+            procurementVisible.filter(r=>procurementPoKey(r)===box.dataset.group).forEach(r=>box.checked ? procurementSelected.add(r.id) : procurementSelected.delete(r.id));
             renderProcurementSchedule();
         }
         function toggleProcurementAllVisible(box) {
