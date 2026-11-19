@@ -595,7 +595,7 @@
                 <form id="procurement-form" onsubmit="saveProcurementSchedule(event)" class="mt-4 space-y-5">
                     <input id="procurement-id" type="hidden"><input id="procurement-revision" type="hidden" value="0">
                     <fieldset class="rounded-xl border border-slate-200 p-3 sm:p-4">
-                        <legend class="px-2 text-sm font-bold text-slate-700">同一張單的共用資訊（只需填一次）</legend>
+                        <legend id="procurement-shared-legend" class="px-2 text-sm font-bold text-slate-700">同一張單的共用資訊（只需填一次）</legend>
                         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                             <label class="block text-sm text-slate-600">供應商<input id="procurement-supplier" maxlength="200" list="procurement-supplier-list" autocomplete="off" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
                             <label class="block text-sm text-slate-600">採購單號<input id="procurement-purchase_no" maxlength="100" list="procurement-po-list" autocomplete="off" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
@@ -2599,6 +2599,7 @@
         const PROCUREMENT_SHARED_FIELDS = ['supplier','purchase_no','planned_order_date','expected_arrival_date','actual_arrival_date','status'];
         let procurementRows = [], procurementLoadedProject = '', procurementRequest = 0, procurementLoading = false, procurementSaving = false, procurementEditorProject = '';
         let procurementSelected = new Set(), procurementVisible = [], procurementEditGroupIds = [];
+        let procurementPoMode = false, procurementPoMixed = new Set();
         // Items on the same purchase order that arrive on the same expected date form one group.
         function procurementGroupKey(r) {
             return r.purchase_no ? JSON.stringify([r.supplier || '', r.purchase_no, r.expected_arrival_date || '']) : '';
@@ -2643,7 +2644,7 @@
         }
         function closeProcurementEditor() {
             document.getElementById('procurement-editor')?.classList.add('hidden');
-            procurementEditorProject='';procurementEditGroupIds=[];
+            procurementEditorProject='';procurementEditGroupIds=[];procurementPoMode=false;procurementPoMixed=new Set();resetProcurementSharedFields();
         }
         function procurementItemCatalog() {
             const catalog=new Map();
@@ -2661,6 +2662,7 @@
         }
         function handleProcurementFormChange(event) {
             const target=event.target;
+            if(procurementPoMode && PROCUREMENT_SHARED_FIELDS.some(k=>target.id==='procurement-'+k)) target.setAttribute('data-po-dirty','1');
             if(target.id==='procurement-purchase_no') {
                 // Re-use supplier and dates from an existing line of the same purchase order.
                 if(document.getElementById('procurement-id').value) return;
@@ -2685,13 +2687,13 @@
         function updateProcurementRowControls() {
             const rows=document.querySelectorAll('#procurement-item-rows .procurement-item-row');
             document.getElementById('procurement-item-count').textContent=`共 ${rows.length} 項`;
-            rows.forEach(row=>row.querySelector('.procurement-remove-row')?.classList.toggle('invisible',rows.length===1));
+            rows.forEach(row=>row.querySelector('.procurement-remove-row')?.classList.toggle('invisible',rows.length===1 || (procurementPoMode && !!row.dataset.id)));
         }
         function appendProcurementItemRow(data={}, fallbackCategory='') {
             const container=document.getElementById('procurement-item-rows');
             const category=MATERIAL_CATEGORIES.includes(data.category) ? data.category : (fallbackCategory || MATERIAL_CATEGORIES[0]);
             const base='mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
-            container.insertAdjacentHTML('beforeend',`<div class="procurement-item-row grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1.1fr_1.6fr_.8fr_.7fr_1.3fr_auto] md:items-end">
+            container.insertAdjacentHTML('beforeend',`<div data-id="${escapeHtml(data.id || '')}" data-revision="${Number(data.revision) || 0}" class="procurement-item-row grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-[1.1fr_1.6fr_.8fr_.7fr_1.3fr_auto] md:items-end">
                 <label class="block text-xs text-slate-600">料號 *<input data-key="item_no" required maxlength="100" list="procurement-item-no-list" autocomplete="off" class="procurement-value ${base}" value="${escapeHtml(data.item_no || '')}"></label>
                 <label class="block text-xs text-slate-600">品名 *<input data-key="item_name" required maxlength="200" class="procurement-value ${base}" value="${escapeHtml(data.item_name || '')}"></label>
                 <label class="block text-xs text-slate-600">物料類別<select data-key="category" class="procurement-value ${base}">${MATERIAL_CATEGORIES.map(c=>`<option ${c===category?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></label>
@@ -2710,12 +2712,96 @@
             try {
                 requireSignedIn(true);
                 if(procurementSaving) throw new Error('正在儲存，請稍候。');
-                if(document.getElementById('procurement-id').value) throw new Error('編輯模式只修改目前這一筆，請使用新增採購排程建立其他項目。');
+                if(document.getElementById('procurement-id').value && !procurementPoMode) throw new Error('編輯模式只修改目前這一筆，請使用新增採購排程建立其他項目。');
                 const container=document.getElementById('procurement-item-rows');
                 if(container.children.length>=50) throw new Error('每次最多新增 50 個採購項目。');
                 const lastCategory=container.lastElementChild?.querySelector('[data-key="category"]')?.value || '';
                 appendProcurementItemRow({},lastCategory).querySelector('[data-key="item_no"]').focus();
             } catch(error) {showError(error);}
+        }
+        function resetProcurementSharedFields() {
+            document.querySelectorAll('#procurement-form [data-po-dirty]').forEach(el=>el.removeAttribute('data-po-dirty'));
+            document.querySelectorAll('#procurement-status option[data-mixed]').forEach(o=>o.remove());
+            for(const key of PROCUREMENT_SHARED_FIELDS) document.getElementById('procurement-'+key).placeholder='';
+            const legend=document.getElementById('procurement-shared-legend');
+            if(legend) legend.textContent='同一張單的共用資訊（只需填一次）';
+        }
+        // 一次編輯同一張採購單的所有項目；共用欄位只有被改動時才會套用到整張單
+        function openProcurementPoEditor(key) {
+            try {
+                requireSignedIn(true);
+                if(procurementSaving) throw new Error('正在儲存，請稍候。');
+                if(!activeProject) throw new Error('請先選擇專案。');
+                const rows=procurementRows.filter(r=>!r.deleted && r.project===activeProject && procurementPoKey(r)===key)
+                    .sort((a,b)=>(a.expected_arrival_date||'9999').localeCompare(b.expected_arrival_date||'9999') || a.item_no.localeCompare(b.item_no));
+                if(!key || !rows.length) throw new Error('找不到這張採購單，請重新整理。');
+                if(rows.length>50) throw new Error('單一採購單超過 50 項，請改用單筆編輯。');
+                ensureBomListener();
+                procurementPoMode=true;procurementPoMixed=new Set();resetProcurementSharedFields();
+                document.getElementById('procurement-form').reset();
+                document.getElementById('procurement-item-rows').innerHTML='';
+                document.getElementById('procurement-add-row').classList.remove('hidden');
+                document.getElementById('procurement-id').value='__po__';
+                document.getElementById('procurement-revision').value=0;
+                procurementEditGroupIds=[];
+                const groupLabel=document.getElementById('procurement-apply-group-label');
+                groupLabel.classList.add('hidden');groupLabel.classList.remove('flex');
+                document.getElementById('procurement-apply-group').checked=false;
+                for(const field of PROCUREMENT_SHARED_FIELDS) {
+                    const el=document.getElementById('procurement-'+field);
+                    const values=new Set(rows.map(r=>r[field] ?? ''));
+                    if(values.size===1) {el.value=[...values][0];continue;}
+                    procurementPoMixed.add(field);
+                    if(el.tagName==='SELECT') {
+                        el.insertAdjacentHTML('afterbegin','<option value="" data-mixed="1">（各項不同，不變更）</option>');
+                        el.value='';
+                    } else {el.value='';el.placeholder='（各項不同，不變更）';}
+                }
+                document.getElementById('procurement-shared-legend').textContent='整張採購單的共用資訊（只有你改動的欄位會套用到全部項目）';
+                refreshProcurementSuggestions();
+                rows.forEach(r=>appendProcurementItemRow(r));
+                procurementEditorProject=activeProject;
+                document.getElementById('procurement-editor-title').textContent=`編輯整張採購單 ${rows[0].purchase_no} · ${activeProject}（${rows.length} 項）`;
+                const editor=document.getElementById('procurement-editor');editor.classList.remove('hidden');editor.scrollIntoView({behavior:'smooth',block:'start'});
+            } catch(error) {showError(error);}
+        }
+        async function savePoProcurementSchedule(project) {
+            const readHeader=()=>{const h={};for(const k of PROCUREMENT_SHARED_FIELDS) h[k]=document.getElementById('procurement-'+k).value;return h;};
+            const header=readHeader();
+            const dirty=new Set(PROCUREMENT_SHARED_FIELDS.filter(k=>document.getElementById('procurement-'+k).hasAttribute('data-po-dirty')));
+            const rowEls=[...document.querySelectorAll('#procurement-item-rows .procurement-item-row')];
+            if(!rowEls.length) throw new Error('請至少保留一個採購項目。');
+            if(rowEls.length>50) throw new Error('每次最多處理 50 個採購項目。');
+            const updates=[],creates=[];
+            let firstOriginal=null;
+            rowEls.forEach(el=>{if(!firstOriginal && el.dataset.id) firstOriginal=procurementRows.find(r=>r.id===el.dataset.id && !r.deleted);});
+            rowEls.forEach((rowEl,index)=>{
+                const item={};for(const f of rowEl.querySelectorAll('.procurement-value')) item[f.dataset.key]=f.value;
+                const label=`第 ${index+1} 項`;
+                try {
+                    if(rowEl.dataset.id) {
+                        const orig=procurementRows.find(r=>r.id===rowEl.dataset.id && !r.deleted);
+                        if(!orig) throw new Error('排程已刪除，請重新整理。');
+                        const merged={...orig,...item};
+                        for(const k of PROCUREMENT_SHARED_FIELDS) if(dirty.has(k) || !procurementPoMixed.has(k)) merged[k]=header[k];
+                        const entry=validateProcurementSchedule(merged,project);
+                        if(PROCUREMENT_FIELDS.some(k=>entry[k]!==orig[k])) updates.push({id:orig.id,revision:orig.revision,fields:entry});
+                    } else {
+                        const merged={...item};
+                        for(const k of PROCUREMENT_SHARED_FIELDS) merged[k]=(dirty.has(k) || !procurementPoMixed.has(k)) ? header[k] : (firstOriginal?.[k] ?? '');
+                        creates.push(validateProcurementSchedule(merged,project));
+                    }
+                } catch(error) {throw new Error(`${label}：${error.message}`);}
+            });
+            if(!updates.length && !creates.length) {closeProcurementEditor();showToast('沒有任何變更。');return;}
+            if(updates.length) await updateProcurementDocs(project,updates);
+            if(creates.length) {
+                const now=new Date().toISOString(),uid=fbAuth.currentUser.uid,batch=fbDb.batch();
+                for(const entry of creates) batch.set(fbDb.collection('procurement_schedules').doc(),{...entry,revision:1,deleted:false,created_by:uid,created_at:now,updated_by:uid,updated_at:now});
+                await batch.commit();
+            }
+            if(activeProject===project) {closeProcurementEditor();await loadProcurementSchedule(true);}
+            showToast(`已更新 ${updates.length} 筆${creates.length?`，新增 ${creates.length} 筆`:''}採購排程。`);
         }
         function openProcurementEditor(id='') {
             try {
@@ -2725,6 +2811,7 @@
                 const row=id ? procurementRows.find(r=>r.id===id && !r.deleted) : null;
                 if(id && !row) throw new Error('找不到排程，請重新整理。');
                 ensureBomListener();
+                procurementPoMode=false;procurementPoMixed=new Set();resetProcurementSharedFields();
                 document.getElementById('procurement-form').reset();
                 document.getElementById('procurement-item-rows').innerHTML='';
                 document.getElementById('procurement-add-row').classList.toggle('hidden',!!id);
@@ -2812,6 +2899,7 @@
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
                         ${check}
                         <strong class="text-slate-800">${unit.key ? '採購單號 ' : ''}${title}</strong>
+                        ${isAdminMode && unit.key ? `<button type="button" data-po="${escapeHtml(unit.key)}" onclick="openProcurementPoEditor(this.dataset.po)" class="rounded-lg border border-indigo-300 bg-white px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50">編輯整張單</button>` : ''}
                         <span class="text-xs text-slate-600">供應商 ${escapeHtml(suppliers.join('、') || '未填')}</span>
                         <span class="text-xs text-slate-600">預計到貨 ${escapeHtml(dateText)}</span>
                         <span class="text-xs text-slate-500">${rows.length} 項 · 已到貨 ${arrived}/${rows.length}</span>
@@ -2985,6 +3073,7 @@
                 const project=procurementEditorProject;
                 if(!project || project!==activeProject) throw new Error('專案已切換，請重新開啟排程表單。');
                 const header={};for(const key of PROCUREMENT_SHARED_FIELDS) header[key]=document.getElementById('procurement-'+key).value;
+                if(procurementPoMode) {await savePoProcurementSchedule(project);return;}
                 const id=document.getElementById('procurement-id').value,revision=Number(document.getElementById('procurement-revision').value);
                 const rowEls=[...document.querySelectorAll('#procurement-item-rows .procurement-item-row')];
                 if(!rowEls.length) throw new Error('請至少填寫一個採購項目。');
@@ -3019,6 +3108,7 @@
             } catch(error) {showError(error);} finally {procurementSaving=false;button.disabled=false;}
         }
         document.getElementById('procurement-form').addEventListener('change',handleProcurementFormChange);
+        document.getElementById('procurement-form').addEventListener('input',e=>{if(procurementPoMode && PROCUREMENT_SHARED_FIELDS.some(k=>e.target.id==='procurement-'+k)) e.target.setAttribute('data-po-dirty','1');});
         async function deleteProcurementSchedule(id) {
             try {
                 requireSignedIn(true);
